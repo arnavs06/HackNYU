@@ -1,0 +1,319 @@
+{
+  "clothing_image_path": "/home/arjun-prasad/ARJUN/Work/Projects/HackNYU/images/91am8ZsWSdL._AC_SX342_.jpg",
+  "tag_image_path": "/home/arjun-prasad/ARJUN/Work/Projects/HackNYU/images/Zaralabelinspo.jpeg",
+  "lykdat_deep_tag_raw": {
+    "colors": [
+      {
+        "confidence": 0.41182178,
+        "hex_code": "747884",
+        "name": "smokey grey"
+      },
+      {
+        "confidence": 0.20201357,
+        "hex_code": "333231",
+        "name": "dark grey"
+      },
+      {
+        "confidence": 0.20154008,
+        "hex_code": "e3ad93",
+        "name": "very light brown"
+      },
+      {
+        "confidence": 0.17954148,
+        "hex_code": "1c1818",
+        "name": "eerie black"
+      },
+      {
+        "confidence": 0.1580153,
+        "hex_code": "cf9982",
+        "name": "pale copper"
+      }
+    ],
+    "items": [
+      {
+        "category": "clothing",
+        "confidence": 0.82282096,
+        "name": "outerwear"
+      },
+      {
+        "category": "clothing",
+        "confidence": 0.78722405,
+        "name": "jeans"
+      },
+      {
+        "category": "clothing",
+        "confidence": 0.5087913,
+        "name": "jacket"
+      }
+    ],
+    "labels": [
+      {
+        "classification": "nickname",
+        "confidence": 0.952165067,
+        "name": "set-in sleeve",
+        "secondary_classification": null
+      },
+      {
+        "classification": "garment parts",
+        "confidence": 0.943018198,
+        "name": "neckline",
+        "secondary_classification": null
+      },
+      {
+        "classification": "garment parts",
+        "confidence": 0.929876864,
+        "name": "sleeve",
+        "secondary_classification": null
+      },
+      {
+        "classification": "silhouette",
+        "confidence": 0.927430511,
+        "name": "symmetrical",
+        "secondary_classification": null
+      },
+      {
+        "classification": "apparel",
+        "confidence": 0.913981259,
+        "name": "top",
+        "secondary_classification": "upperbody"
+      },
+      {
+        "classification": "length",
+        "confidence": 0.913981259,
+        "name": "wrist-length",
+        "secondary_classification": null
+      },
+      {
+        "classification": "apparel",
+        "confidence": 0.911033452,
+        "name": "jacket",
+        "secondary_classification": "upperbody"
+      },
+      {
+        "classification": "textile pattern",
+        "confidence": 0.907994807,
+        "name": "plain",
+        "secondary_classification": null
+      },
+      {
+        "classification": "closures",
+        "confidence": 0.790729046,
+        "name": "buckle",
+        "secondary_classification": null
+      },
+      {
+        "classification": "length",
+        "confidence": 0.778246,
+        "name": "above the hip (length)",
+        "secondary_classification": null
+      },
+      {
+        "classification": "neckline type",
+        "confidence": 0.744757652,
+        "name": "round (neck)",
+        "secondary_classification": null
+      },
+      {
+        "classification": "apparel",
+        "confidence": 0.730467141,
+        "name": "belt",
+        "secondary_classification": "waist"
+      },
+      {
+        "classification": "silhouette",
+        "confidence": 0.700418413,
+        "name": "regular (fit)",
+        "secondary_classification": null
+      },
+      {
+        "classification": "finishing technique",
+        "confidence": 0.700418413,
+        "name": "lining",
+        "secondary_classification": null
+      },
+      {
+        "classification": "nickname",
+        "confidence": 0.700418413,
+        "name": "biker (jacket)",
+        "secondary_classification": null
+      },
+      {
+        "classification": "closures",
+        "confidence": 0.676670849,
+        "name": "zipper",
+        "secondary_classification": null
+      },
+      {
+        "classification": "opening type",
+        "confidence": 0.635036647,
+        "name": "zip-up",
+        "secondary_classification": null
+      },
+      {
+        "classification": "nickname",
+        "confidence": 0.635036647,
+        "name": "classic (t-shirt)",
+        "secondary_classification": null
+      },
+      {
+        "classification": "length",
+        "confidence": 0.5,
+        "name": "hip (length)",
+        "secondary_classification": null
+      }
+    ]
+  },
+  "tag_ocr_text": "ZARA\nEUR XL USA XL MEX 32\nMADE IN MYANMAR (BURMA)",
+  "tag_structured": {
+    "brand": "ZARA",
+    "product_name": null,
+    "size": "EUR XL USA XL MEX 32",
+    "material_composition": [],
+    "materials": null,
+    "made_in": "MYANMAR (BURMA)",
+    "country_of_origin": "MYANMAR (BURMA)",
+    "origin": "MYANMAR (BURMA)",
+    "certifications": [],
+    "care_instructions": [],
+    "symbols": [],
+    "other_text": null
+  },
+  "tag_extra_fields": {
+    "symbols": [],
+    "other_text": null
+  },
+  "combined_product_metadata": {
+    "url": "file:///home/arjun-prasad/ARJUN/Work/Projects/HackNYU/images/91am8ZsWSdL._AC_SX342_.jpg",
+    "title": "outerwear",
+    "brand": "ZARA",
+    "product_name": "outerwear",
+    "materials": null,
+    "origin": "MYANMAR (BURMA)",
+    "certifications": [],
+    "price": null,
+    "currency": null,
+    "eco_notes": "colors: smokey grey, dark grey, very light brown, eerie black, pale copper; item: outerwear, clothing; labels: set-in sleeve, neckline, sleeve, symmetrical, top, wrist-length, jacket, plain, buckle, above the hip (length); size: EUR XL USA XL MEX 32"
+  },
+  "similar_products": [
+    {
+      "url": "https://www.shopstyle.com/interstitial/loadRetailerProductPage?id=1073841553",
+      "title": "Bagatelle Homme Men's Genuine Leather Zip Front Jacket",
+      "brand": null,
+      "product_name": "Bagatelle Homme Men's Genuine Leather Zip Front Jacket",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 499.0,
+      "currency": "USD",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: shopstyle"
+    },
+    {
+      "url": "https://www.shopstyle.com/interstitial/loadRetailerProductPage?id=1101317292",
+      "title": "Bgsd Men Ryan Zip Front Leather Jacket - Tall",
+      "brand": null,
+      "product_name": "Bgsd Men Ryan Zip Front Leather Jacket - Tall",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 449.99,
+      "currency": "USD",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: shopstyle"
+    },
+    {
+      "url": "https://click.linksynergy.com/link?id=yExw9ymt6gU&offerid=1100569.357183506481898425810924&type=15&murl=https%3A%2F%2Fwww.asos.com%2Fweekday%2Fweekday-denzel-faux-leather-shrunken-jacket-in-black%2Fprd%2F206988481%3FbrowseCountry%3DGB%26browseCurrency%3DGBP",
+      "title": "Weekday Denzel Faux Leather Shrunken Jacket in Black",
+      "brand": "Weekday",
+      "product_name": "Weekday Denzel Faux Leather Shrunken Jacket in Black",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 109.0,
+      "currency": "GBP",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: asos-uk"
+    },
+    {
+      "url": "https://www.shopstyle.com/interstitial/loadRetailerProductPage?id=1090967296",
+      "title": "RECTO Black Vintage Crack Effect Leather Jacket",
+      "brand": "recto",
+      "product_name": "RECTO Black Vintage Crack Effect Leather Jacket",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": null,
+      "currency": "USD",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: shopstyle"
+    },
+    {
+      "url": "https://www.shopstyle.com/interstitial/loadRetailerProductPage?id=1073046589",
+      "title": "Men's Haymarket Leather Jacket",
+      "brand": "rodd & gunn",
+      "product_name": "Men's Haymarket Leather Jacket",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 798.0,
+      "currency": "USD",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: shopstyle"
+    },
+    {
+      "url": "https://www.shopstyle.com/interstitial/loadRetailerProductPage?id=1095410235",
+      "title": "Maison Kitsuné Zipped Cropped Leather Jacket",
+      "brand": "maison kitsuné",
+      "product_name": "Maison Kitsuné Zipped Cropped Leather Jacket",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 772.1,
+      "currency": "USD",
+      "eco_notes": "gender: female; category: clothing; sub_category: outerwear; vendor: shopstyle"
+    },
+    {
+      "url": "https://www.awin1.com/pclick.php?p=40721054415&a=620485&m=6700",
+      "title": "Sunflower Short Leather Jacket, Black",
+      "brand": "sunflower",
+      "product_name": "Sunflower Short Leather Jacket, Black",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 530.0,
+      "currency": "GBP",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: hip"
+    },
+    {
+      "url": "https://www.awin1.com/pclick.php?p=38896986964&a=620485&m=6016",
+      "title": "Unisex PU Leather Oversized Fit Blouson [BK]",
+      "brand": "leftseoul",
+      "product_name": "Unisex PU Leather Oversized Fit Blouson [BK]",
+      "materials": null,
+      "origin": "China",
+      "certifications": [],
+      "price": 158.0,
+      "currency": "USD",
+      "eco_notes": "gender: female; category: clothing; sub_category: outerwear; vendor: w-concept-us | Made with eco-leather"
+    },
+    {
+      "url": "https://www.awin1.com/pclick.php?p=40387774720&a=620485&m=6016",
+      "title": "Glossy Vegan Leather Relaxed Fit Jacket [Black]",
+      "brand": "Enor DESIGN",
+      "product_name": "Glossy Vegan Leather Relaxed Fit Jacket [Black]",
+      "materials": "Vegan leather (polyurethane)",
+      "origin": "SOUTH KOREA",
+      "certifications": [],
+      "price": 303.0,
+      "currency": "USD",
+      "eco_notes": "gender: female; category: clothing; sub_category: outerwear; vendor: w-concept-us | Made from vegan leather."
+    },
+    {
+      "url": "https://www.awin1.com/pclick.php?p=39338484942&a=620485&m=11194",
+      "title": "Karl Lagerfeld, Zip-up Leather Jacket, Man, Black, Size: 46",
+      "brand": "KARL LAGERFELD",
+      "product_name": "Karl Lagerfeld, Zip-up Leather Jacket, Man, Black, Size: 46",
+      "materials": null,
+      "origin": null,
+      "certifications": [],
+      "price": 1010.0,
+      "currency": "GBP",
+      "eco_notes": "gender: male; category: clothing; sub_category: outerwear; vendor: karl-lagerfeld-uk"
+    }
+  ]
+}
