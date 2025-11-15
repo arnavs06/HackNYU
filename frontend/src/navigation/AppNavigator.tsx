@@ -1,59 +1,144 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList, BottomTabParamList } from '../types';
 
 // Screens
-import HomeScreen from '../screens/HomeScreen';
 import ScannerScreen from '../screens/ScannerScreen';
 import ResultsScreen from '../screens/ResultsScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import SearchScreen from '../screens/SearchScreen';
+import RecommendationsScreen from '../screens/RecommendationsScreen';
+import AccountScreen from '../screens/AccountScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
+// Placeholder component for scan button
+const ScanPlaceholder = () => null;
+
 function TabNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: '#667eea',
-        tabBarInactiveTintColor: '#a0aec0',
-      }}
+      screenOptions={({ navigation }) => ({
+        tabBarActiveTintColor: '#778873',
+        tabBarInactiveTintColor: '#A1BC98',
+        tabBarStyle: {
+          backgroundColor: '#F1F3E0',
+          borderTopColor: '#D2DCB6',
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 65,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 4,
+        },
+      })}
     >
       <Tab.Screen
-        name="Scan"
-        component={HomeScreen}
+        name="Search"
+        component={SearchScreen}
         options={{
-          title: 'EcoScan',
-          tabBarIcon: ({ size }) => <TabIcon icon="📸" size={size} />,
+          title: 'Search',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="search" size={size} color={color} />
+          ),
         }}
+      />
+      <Tab.Screen
+        name="Recommendations"
+        component={RecommendationsScreen}
+        options={{
+          title: 'Picks',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="star" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ScanButton"
+        component={ScanPlaceholder}
+        options={({ navigation }) => ({
+          tabBarButton: (props) => (
+            <TouchableOpacity
+              {...props}
+              style={[props.style, tabStyles.scanButtonContainer]}
+              onPress={() => navigation.navigate('Scanner' as any)}
+              activeOpacity={0.8}
+            >
+              <View style={tabStyles.scanButton}>
+                <Ionicons name="camera" size={30} color="#F1F3E0" />
+              </View>
+            </TouchableOpacity>
+          ),
+        })}
       />
       <Tab.Screen
         name="History"
         component={HistoryScreen}
         options={{
           title: 'History',
-          tabBarIcon: ({ size }) => <TabIcon icon="📜" size={size} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Account"
+        component={AccountScreen}
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>
   );
 }
 
-function TabIcon({ icon, size }: { icon: string; size: number }) {
-  return (
-    <Text style={{ fontSize: size }}>
-      {icon}
-    </Text>
-  );
-}
+const tabStyles = StyleSheet.create({
+  scanButtonContainer: {
+    top: -30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanButton: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: '#778873',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 5,
+    borderColor: '#F1F3E0',
+    shadowColor: '#778873',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+});
 
 export default function AppNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: '#D2DCB6',
+          },
+          headerTintColor: '#778873',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
         <Stack.Screen
           name="Home"
           component={TabNavigator}

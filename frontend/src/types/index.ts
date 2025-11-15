@@ -70,7 +70,9 @@ export type RootStackParamList = {
 };
 
 export type BottomTabParamList = {
-  Scan: undefined;
+  Search: undefined;
+  Recommendations: undefined;
+  ScanButton: undefined;
   History: undefined;
-  Profile: undefined;
+  Account: undefined;
 };

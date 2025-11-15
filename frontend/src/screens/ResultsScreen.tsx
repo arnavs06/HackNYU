@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RootStackParamList, ScanResult } from '../types';
 
 type ResultsScreenRouteProp = RouteProp<RootStackParamList, 'Results'>;
@@ -20,29 +21,29 @@ export default function ResultsScreen() {
   const { scanResult } = route.params;
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return '#48bb78';
-    if (score >= 60) return '#ecc94b';
-    if (score >= 40) return '#ed8936';
-    return '#f56565';
+    if (score >= 80) return '#A1BC98';
+    if (score >= 60) return '#D2DCB6';
+    if (score >= 40) return '#d4a574';
+    return '#c17a6e';
   };
 
-  const getGradeEmoji = (grade: string) => {
-    const emojis: { [key: string]: string } = {
-      A: '🌟',
-      B: '✨',
-      C: '⚠️',
-      D: '😞',
-      F: '❌',
+  const getGradeIcon = (grade: string) => {
+    const icons: { [key: string]: string } = {
+      A: 'star',
+      B: 'star-half',
+      C: 'warning',
+      D: 'sad',
+      F: 'close-circle',
     };
-    return emojis[grade] || '📊';
+    return icons[grade] || 'stats-chart';
   };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'low': return '#48bb78';
-      case 'medium': return '#ed8936';
-      case 'high': return '#f56565';
-      default: return '#718096';
+      case 'low': return '#A1BC98';
+      case 'medium': return '#d4a574';
+      case 'high': return '#c17a6e';
+      default: return '#778873';
     }
   };
 
@@ -72,7 +73,11 @@ export default function ResultsScreen() {
           <Text style={styles.scoreMax}>/100</Text>
         </View>
         <View style={styles.gradeContainer}>
-          <Text style={styles.gradeEmoji}>{getGradeEmoji(scanResult.ecoScore.grade)}</Text>
+          <Ionicons 
+            name={getGradeIcon(scanResult.ecoScore.grade) as any} 
+            size={32} 
+            color={getScoreColor(scanResult.ecoScore.score)} 
+          />
           <Text style={[styles.grade, { color: getScoreColor(scanResult.ecoScore.score) }]}>
             Grade {scanResult.ecoScore.grade}
           </Text>
@@ -117,7 +122,10 @@ export default function ResultsScreen() {
 
       {/* AI Explanation */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>💬 AI Analysis</Text>
+        <View style={styles.sectionTitleContainer}>
+          <MaterialCommunityIcons name="brain" size={24} color="#778873" />
+          <Text style={styles.sectionTitle}>AI Analysis</Text>
+        </View>
         <View style={styles.explanationCard}>
           <Text style={styles.explanationText}>{scanResult.explanation}</Text>
           {scanResult.confidence && (
@@ -131,11 +139,14 @@ export default function ResultsScreen() {
       {/* Improvement Tips */}
       {scanResult.improvementTips && scanResult.improvementTips.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💡 Tips for Better Choices</Text>
+          <View style={styles.sectionTitleContainer}>
+            <Ionicons name="bulb" size={24} color="#778873" />
+            <Text style={styles.sectionTitle}>Tips for Better Choices</Text>
+          </View>
           <View style={styles.tipsContainer}>
             {scanResult.improvementTips.map((tip, index) => (
               <View key={index} style={styles.tip}>
-                <Text style={styles.tipBullet}>•</Text>
+                <Ionicons name="checkmark-circle" size={20} color="#A1BC98" />
                 <Text style={styles.tipText}>{tip}</Text>
               </View>
             ))}
@@ -164,7 +175,7 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7fafc',
+    backgroundColor: '#F1F3E0',
   },
   content: {
     padding: 20,
@@ -184,7 +195,7 @@ const styles = StyleSheet.create({
   },
   scoreLabel: {
     fontSize: 18,
-    color: '#718096',
+    color: '#778873',
     marginBottom: 16,
     fontWeight: '600',
   },
@@ -193,7 +204,7 @@ const styles = StyleSheet.create({
     height: 140,
     borderRadius: 70,
     borderWidth: 8,
-    borderColor: '#edf2f7',
+    borderColor: '#D2DCB6',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -204,14 +215,13 @@ const styles = StyleSheet.create({
   },
   scoreMax: {
     fontSize: 18,
-    color: '#a0aec0',
+    color: '#778873',
+    opacity: 0.6,
   },
   gradeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  gradeEmoji: {
-    fontSize: 28,
+    gap: 8,
   },
   grade: {
     fontSize: 24,
@@ -237,24 +247,30 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    color: '#a0aec0',
+    color: '#778873',
     marginBottom: 4,
     fontWeight: '600',
     textTransform: 'uppercase',
+    opacity: 0.7,
   },
   detailValue: {
     fontSize: 16,
-    color: '#2d3748',
+    color: '#778873',
     fontWeight: '600',
   },
   section: {
     marginBottom: 20,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2d3748',
-    marginBottom: 12,
+    color: '#778873',
   },
   flagsContainer: {
     flexDirection: 'row',
@@ -278,7 +294,7 @@ const styles = StyleSheet.create({
   },
   flagText: {
     fontSize: 13,
-    color: '#4a5568',
+    color: '#778873',
     fontWeight: '600',
     marginLeft: 6,
   },
@@ -287,7 +303,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
+    borderLeftColor: '#A1BC98',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -296,37 +312,33 @@ const styles = StyleSheet.create({
   },
   explanationText: {
     fontSize: 15,
-    color: '#4a5568',
+    color: '#778873',
     lineHeight: 22,
   },
   confidenceText: {
     fontSize: 12,
-    color: '#a0aec0',
+    color: '#778873',
     marginTop: 8,
     fontStyle: 'italic',
+    opacity: 0.7,
   },
   tipsContainer: {
-    backgroundColor: '#f0fff4',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#9ae6b4',
+    borderWidth: 2,
+    borderColor: '#D2DCB6',
   },
   tip: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  tipBullet: {
-    fontSize: 16,
-    color: '#48bb78',
-    marginRight: 8,
-    fontWeight: 'bold',
+    marginBottom: 12,
+    gap: 8,
   },
   tipText: {
     flex: 1,
     fontSize: 14,
-    color: '#2f855a',
+    color: '#778873',
     lineHeight: 20,
   },
   actionsContainer: {
@@ -335,32 +347,35 @@ const styles = StyleSheet.create({
   shareButton: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#667eea',
+    borderColor: '#A1BC98',
     marginBottom: 12,
   },
   shareButtonText: {
-    color: '#667eea',
-    fontSize: 16,
+    color: '#778873',
+    fontSize: 17,
     fontWeight: '600',
   },
   scanButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#778873',
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     alignItems: 'center',
   },
   scanButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#F1F3E0',
+    fontSize: 17,
     fontWeight: '600',
   },
   timestamp: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#a0aec0',
+    color: '#778873',
     fontStyle: 'italic',
+    opacity: 0.7,
   },
 });

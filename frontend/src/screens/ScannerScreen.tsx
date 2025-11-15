@@ -7,9 +7,11 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -20,7 +22,9 @@ type ScannerScreenNavigationProp = NativeStackNavigationProp<RootStackParamList,
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraRef, setCameraRef] = useState<CameraView | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [stage, setStage] = useState<1 | 2>(1); // 1 = tag scan, 2 = clothing photo
+  const [tagImage, setTagImage] = useState<string | null>(null);
+  const [clothingImage, setClothingImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const navigation = useNavigation<ScannerScreenNavigationProp>();
 
@@ -38,7 +42,11 @@ export default function ScannerScreen() {
       });
 
       if (photo?.uri) {
-        setCapturedImage(photo.uri);
+        if (stage === 1) {
+          setTagImage(photo.uri);
+        } else {
+          setClothingImage(photo.uri);
+        }
       }
     } catch (error) {
       console.error('Error taking picture:', error);
@@ -56,7 +64,11 @@ export default function ScannerScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setCapturedImage(result.assets[0].uri);
+        if (stage === 1) {
+          setTagImage(result.assets[0].uri);
+        } else {
+          setClothingImage(result.assets[0].uri);
+        }
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -64,39 +76,57 @@ export default function ScannerScreen() {
     }
   };
 
-  const handleScanImage = async () => {
-    if (!capturedImage) return;
+  const handleContinueToStage2 = () => {
+    if (tagImage) {
+      setStage(2);
+    }
+  };
+
+  const handleRetakeStage1 = () => {
+    setTagImage(null);
+  };
+
+  const handleRetakeStage2 = () => {
+    setClothingImage(null);
+  };
+
+  const handleBackToStage1 = () => {
+    setStage(1);
+    setClothingImage(null);
+  };
+
+  const handleScanImages = async () => {
+    if (!tagImage || !clothingImage) return;
 
     setIsProcessing(true);
 
     try {
-      // Step 2 of workflow: Send to backend
+      // Step 2 of workflow: Send to backend with both images
       // Using mock API for now - switch to real apiService when backend is ready
-      const response = await mockApiService.scanClothingTag(capturedImage);
+      const response = await mockApiService.scanClothingTag(tagImage);
 
       if (response.success && response.data) {
         // Step 7: Navigate to results screen
         navigation.navigate('Results', { scanResult: response.data });
-        setCapturedImage(null);
+        // Reset state
+        setTagImage(null);
+        setClothingImage(null);
+        setStage(1);
       } else {
         Alert.alert('Scan Failed', response.error || 'Unable to scan the tag. Please try again.');
       }
     } catch (error: any) {
       console.error('Scan error:', error);
-      Alert.alert('Error', error.message || 'Failed to process image. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to process images. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleRetake = () => {
-    setCapturedImage(null);
-  };
-
   if (!permission) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#667eea" />
+        <ActivityIndicator size="large" color="#778873" />
       </View>
     );
   }
@@ -112,26 +142,91 @@ export default function ScannerScreen() {
     );
   }
 
-  if (capturedImage) {
+  // Stage 1: Tag image captured
+  if (stage === 1 && tagImage) {
     return (
       <View style={styles.container}>
-        <Image source={{ uri: capturedImage }} style={styles.preview} />
+        <View style={styles.stageIndicator}>
+          <View style={styles.stageIndicatorActive}>
+            <Text style={styles.stageIndicatorText}>1</Text>
+          </View>
+          <View style={styles.stageIndicatorLine} />
+          <View style={styles.stageIndicatorInactive}>
+            <Text style={styles.stageIndicatorTextInactive}>2</Text>
+          </View>
+        </View>
         
+        <Image source={{ uri: tagImage }} style={styles.preview} />
+        
+        <View style={styles.previewInfo}>
+          <Ionicons name="checkmark-circle" size={32} color="#A1BC98" />
+          <Text style={styles.previewTitle}>Tag Captured!</Text>
+          <Text style={styles.previewSubtext}>Now let's take a photo of the clothing item</Text>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.retakeButton} onPress={handleRetakeStage1}>
+            <Text style={styles.buttonText}>Retake Tag</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.continueButton} onPress={handleContinueToStage2}>
+            <Text style={styles.buttonText}>Continue</Text>
+            <Ionicons name="arrow-forward" size={20} color="#F1F3E0" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Stage 2: Both images captured, ready to scan
+  if (stage === 2 && clothingImage) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.stageIndicator}>
+          <View style={styles.stageIndicatorComplete}>
+            <Ionicons name="checkmark" size={16} color="#fff" />
+          </View>
+          <View style={styles.stageIndicatorLine} />
+          <View style={styles.stageIndicatorActive}>
+            <Text style={styles.stageIndicatorText}>2</Text>
+          </View>
+        </View>
+
+        <ScrollView 
+          contentContainerStyle={styles.previewBothContainer}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+        >
+          <View style={styles.bothImagesContainer}>
+            <View style={styles.imagePreviewSmall}>
+              <Image source={{ uri: tagImage }} style={styles.previewImageSmall} />
+              <Text style={styles.imageLabel}>Clothing Tag</Text>
+            </View>
+            <View style={styles.imagePreviewSmall}>
+              <Image source={{ uri: clothingImage }} style={styles.previewImageSmall} />
+              <Text style={styles.imageLabel}>Clothing Item</Text>
+            </View>
+          </View>
+        </ScrollView>
+
         {isProcessing ? (
           <View style={styles.processingContainer}>
-            <ActivityIndicator size="large" color="#667eea" />
-            <Text style={styles.processingText}>Analyzing clothing tag...</Text>
+            <ActivityIndicator size="large" color="#778873" />
+            <Text style={styles.processingText}>Analyzing your clothing...</Text>
             <Text style={styles.processingSubtext}>
-              Extracting material and origin information
+              Extracting material, origin, and eco-impact data
             </Text>
           </View>
         ) : (
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
-              <Text style={styles.buttonText}>Retake</Text>
+            <TouchableOpacity style={styles.retakeButton} onPress={handleRetakeStage2}>
+              <Text style={styles.buttonText}>Retake Item</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.scanButton} onPress={handleScanImage}>
-              <Text style={styles.buttonText}>Scan Tag</Text>
+            <TouchableOpacity style={styles.backButton} onPress={handleBackToStage1}>
+              <Text style={styles.buttonText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scanButton} onPress={handleScanImages}>
+              <Text style={styles.buttonText}>Analyze</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -139,6 +234,7 @@ export default function ScannerScreen() {
     );
   }
 
+  // Camera view for current stage
   return (
     <View style={styles.container}>
       <CameraView
@@ -146,9 +242,21 @@ export default function ScannerScreen() {
         ref={(ref) => setCameraRef(ref)}
       >
         <View style={styles.overlay}>
+          {/* Stage Indicator */}
+          <View style={styles.cameraStageIndicator}>
+            <View style={[styles.stageDot, stage === 1 && styles.stageDotActive]} />
+            <View style={[styles.stageDot, stage === 2 && styles.stageDotActive]} />
+          </View>
+
           <View style={styles.header}>
-            <Text style={styles.title}>Position clothing tag in frame</Text>
-            <Text style={styles.subtitle}>Make sure the text is clear and readable</Text>
+            <Text style={styles.title}>
+              {stage === 1 ? 'Position clothing tag in frame' : 'Capture the full clothing item'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {stage === 1 
+                ? 'Make sure the text is clear and readable' 
+                : 'Show the entire garment for better analysis'}
+            </Text>
           </View>
 
           <View style={styles.frame}>
@@ -160,7 +268,7 @@ export default function ScannerScreen() {
 
           <View style={styles.controls}>
             <TouchableOpacity style={styles.galleryButton} onPress={handlePickImage}>
-              <Text style={styles.galleryButtonText}>📁</Text>
+              <Ionicons name="images" size={28} color="#F1F3E0" />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.captureButton} onPress={handleTakePicture}>
@@ -178,7 +286,7 @@ export default function ScannerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#F1F3E0',
   },
   camera: {
     flex: 1,
@@ -216,7 +324,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 40,
     height: 40,
-    borderColor: '#667eea',
+    borderColor: '#A1BC98',
   },
   topLeft: {
     top: 0,
@@ -257,24 +365,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
-    borderColor: '#667eea',
+    borderColor: '#A1BC98',
   },
   captureButtonInner: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#667eea',
+    backgroundColor: '#778873',
   },
   galleryButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(161, 188, 152, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  galleryButtonText: {
-    fontSize: 24,
   },
   placeholder: {
     width: 50,
@@ -282,62 +387,197 @@ const styles = StyleSheet.create({
   preview: {
     flex: 1,
     resizeMode: 'contain',
-    backgroundColor: '#000',
+    backgroundColor: '#fff',
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     padding: 20,
-    backgroundColor: '#000',
+    backgroundColor: '#F1F3E0',
   },
   button: {
     flex: 1,
-    padding: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     borderRadius: 12,
-    backgroundColor: '#667eea',
+    backgroundColor: '#778873',
     marginHorizontal: 8,
     alignItems: 'center',
   },
   retakeButton: {
     flex: 1,
-    padding: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     borderRadius: 12,
-    backgroundColor: '#4a5568',
+    backgroundColor: '#A1BC98',
     marginHorizontal: 8,
     alignItems: 'center',
   },
   scanButton: {
     flex: 1,
-    padding: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     borderRadius: 12,
-    backgroundColor: '#667eea',
+    backgroundColor: '#778873',
     marginHorizontal: 8,
     alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
+  },
+  continueButton: {
+    flex: 1,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: '#778873',
+    marginHorizontal: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  backButton: {
+    flex: 0.7,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: '#A1BC98',
+    marginHorizontal: 8,
+    alignItems: 'center',
+  },
+  stageIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#F1F3E0',
+  },
+  stageIndicatorActive: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#778873',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stageIndicatorInactive: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#D2DCB6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stageIndicatorComplete: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#A1BC98',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stageIndicatorText: {
+    color: '#F1F3E0',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  stageIndicatorTextInactive: {
+    color: '#778873',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  stageIndicatorLine: {
+    width: 40,
+    height: 3,
+    backgroundColor: '#D2DCB6',
+    marginHorizontal: 8,
+  },
+  cameraStageIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 40,
+    gap: 12,
+  },
+  stageDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  stageDotActive: {
+    backgroundColor: '#A1BC98',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  previewInfo: {
+    padding: 24,
+    alignItems: 'center',
+    backgroundColor: '#F1F3E0',
+  },
+  previewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#778873',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  previewSubtext: {
+    fontSize: 14,
+    color: '#778873',
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  previewBothContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    backgroundColor: '#F1F3E0',
+  },
+  bothImagesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    padding: 20,
+  },
+  imagePreviewSmall: {
+    alignItems: 'center',
+  },
+  previewImageSmall: {
+    width: 150,
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  imageLabel: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#778873',
   },
   processingContainer: {
     padding: 40,
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: '#F1F3E0',
   },
   processingText: {
-    color: '#fff',
+    color: '#778873',
     fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
   },
   processingSubtext: {
-    color: '#aaa',
+    color: '#778873',
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+    opacity: 0.7,
   },
   permissionText: {
-    color: '#fff',
+    color: '#778873',
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,

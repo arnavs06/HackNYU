@@ -10,10 +10,17 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList, ScanResult, HistoryStats } from '../types';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { CompositeNavigationProp } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import { RootStackParamList, BottomTabParamList, ScanResult, HistoryStats } from '../types';
 import { mockApiService } from '../services/mockApi';
+import SwipeableTab from '../components/SwipeableTab';
 
-type HistoryScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'History'>;
+type HistoryScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<BottomTabParamList, 'History'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 export default function HistoryScreen() {
   const [scans, setScans] = useState<ScanResult[]>([]);
@@ -58,10 +65,10 @@ export default function HistoryScreen() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return '#48bb78';
-    if (score >= 60) return '#ecc94b';
-    if (score >= 40) return '#ed8936';
-    return '#f56565';
+    if (score >= 80) return '#A1BC98';
+    if (score >= 60) return '#D2DCB6';
+    if (score >= 40) return '#d4a574';
+    return '#c17a6e';
   };
 
   const formatDate = (dateString: string) => {
@@ -116,7 +123,7 @@ export default function HistoryScreen() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyEmoji}>📸</Text>
+      <Ionicons name="camera-outline" size={100} color="#A1BC98" />
       <Text style={styles.emptyTitle}>No scans yet</Text>
       <Text style={styles.emptyText}>
         Start scanning clothing tags to build your eco-wardrobe history
@@ -172,15 +179,19 @@ export default function HistoryScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#667eea" />
+        <ActivityIndicator size="large" color="#778873" />
         <Text style={styles.loadingText}>Loading your history...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
+    <SwipeableTab
+      onSwipeLeft={() => navigation.navigate('Account')}
+      onSwipeRight={() => navigation.navigate('Recommendations')}
+    >
+      <View style={styles.container}>
+        <FlatList
         data={scans}
         keyExtractor={(item) => item.id}
         renderItem={renderScanItem}
@@ -194,29 +205,30 @@ export default function HistoryScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor="#667eea"
+            tintColor="#778873"
           />
         }
       />
     </View>
+    </SwipeableTab>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f7fafc',
+    backgroundColor: '#F1F3E0',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f7fafc',
+    backgroundColor: '#F1F3E0',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#718096',
+    color: '#778873',
   },
   listContent: {
     padding: 20,
@@ -239,7 +251,7 @@ const styles = StyleSheet.create({
   statsTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2d3748',
+    color: '#778873',
     marginBottom: 16,
   },
   statsGrid: {
@@ -248,7 +260,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#f7fafc',
+    backgroundColor: '#F1F3E0',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -257,13 +269,14 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#667eea',
+    color: '#778873',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#718096',
+    color: '#778873',
     textAlign: 'center',
+    opacity: 0.7,
   },
   scanCard: {
     backgroundColor: '#fff',
@@ -299,18 +312,19 @@ const styles = StyleSheet.create({
   material: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2d3748',
+    color: '#778873',
     marginBottom: 4,
   },
   country: {
     fontSize: 14,
-    color: '#718096',
+    color: '#778873',
+    opacity: 0.7,
   },
   gradeContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f7fafc',
+    backgroundColor: '#F1F3E0',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -324,47 +338,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#edf2f7',
+    borderTopColor: '#D2DCB6',
   },
   timestamp: {
     fontSize: 12,
-    color: '#a0aec0',
+    color: '#778873',
+    opacity: 0.7,
   },
   flagsCount: {
     fontSize: 12,
-    color: '#667eea',
+    color: '#778873',
     fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  emptyEmoji: {
-    fontSize: 80,
-    marginBottom: 16,
-  },
   emptyTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2d3748',
+    color: '#778873',
     marginBottom: 12,
+    marginTop: 16,
   },
   emptyText: {
     fontSize: 16,
-    color: '#718096',
+    color: '#778873',
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 24,
+    opacity: 0.8,
   },
   scanButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#778873',
     borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingVertical: 18,
+    paddingHorizontal: 48,
+    minWidth: 220,
   },
   scanButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#F1F3E0',
+    fontSize: 17,
     fontWeight: '600',
   },
 });
