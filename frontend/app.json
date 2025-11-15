@@ -1,0 +1,54 @@
+{
+  "expo": {
+  "name": "EcoScan",
+  "slug": "ecoscan",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "icon": "./assets/icon.png",
+  "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#667eea"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ecoscan.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "EcoScan needs camera access to scan clothing tags",
+        "NSPhotoLibraryUsageDescription": "EcoScan needs photo library access to select images"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#667eea"
+      },
+      "package": "com.ecoscan.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow EcoScan to access your camera to scan clothing tags"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow EcoScan to access your photos"
+        }
+      ]
+    ]
+  }
+}
