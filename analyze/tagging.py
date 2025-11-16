@@ -8,6 +8,7 @@ import requests
 
 from analyze.helper import get_env
 from analyze.base import ProductMetadata, EcoScore, ScoredProduct  # noqa: F401
+from analyze.ecoscore import compute_eco_score
 
 # --- Lykdat Deep Tagging config ---
 
@@ -16,7 +17,7 @@ LYKDAT_API_ENV = "LYKDAT_API_KEY"
 
 # --- Gemini / Vision config ---
 
-# Prefer explicit GEMINI_API_KEY, fall back to GOOGLE_API_KEY
+# Prefer explicit GEMINI_API_KEY
 GEMINI_API_ENV_PRIMARY = "GEMINI_API_KEY"
 GOOGLE_OCR_KEY = "GOOGLE_OCR_KEY"
 
@@ -446,13 +447,11 @@ Do NOT wrap the JSON in backticks. Do NOT add explanations.
 Only output the JSON object.
 """
 
-    # ✅ attach system prompt here
     model = genai.GenerativeModel(
         model_name,
         system_instruction=system_prompt,
     )
 
-    # ✅ only user content, no "system" role
     response = model.generate_content(
         [{"role": "user", "parts": [user_prompt]}]
     )
@@ -475,6 +474,7 @@ Only output the JSON object.
 
     return data
 
+
 def tag_image_to_tag_metadata(
     tag_image_path: str,
     gemini_api_key: Optional[str] = None,
@@ -488,6 +488,7 @@ def tag_image_to_tag_metadata(
 
 # ---------------------------------------------------------------------------
 # Combine Lykdat deep tags + tag metadata into a single combined object
+# + EcoScore
 # ---------------------------------------------------------------------------
 
 
@@ -506,6 +507,7 @@ def combine_lykdat_and_tag_metadata(
       - raw OCR text
       - structured tag JSON
       - a merged ProductMetadata view
+      - an EcoScore object (grade + explanation)
     """
     # 1) Lykdat on main clothing image
     deep_tags = deep_tag_image_file(clothing_image_path, api_key=lykdat_api_key)
@@ -546,7 +548,15 @@ def combine_lykdat_and_tag_metadata(
         eco_notes=eco_notes,
     )
 
-    # 4) Return a combined JSON-friendly dict
+    # 4) EcoScore for the main item
+    eco = compute_eco_score(
+        product=combined_product,
+        tag_structured=tag_meta.raw_structured,
+        lykdat_raw=deep_tags.raw,
+        gemini_api_key=gemini_api_key,
+    )
+
+    # 5) Return a combined JSON-friendly dict
     return {
         "clothing_image_path": clothing_image_path,
         "tag_image_path": tag_image_path,
@@ -555,4 +565,5 @@ def combine_lykdat_and_tag_metadata(
         "tag_structured": tag_meta.raw_structured,
         "tag_extra_fields": tag_meta.extra_fields,
         "combined_product_metadata": asdict(combined_product),
+        "eco_score": asdict(eco),
     }

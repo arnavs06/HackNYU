@@ -1,26 +1,39 @@
 import os
+import sys
 import mimetypes
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from analyze.helper import get_env, safe_get
 from analyze.base import ProductMetadata
+from analyze.tagging import (
+    DeepTagResult,
+    deep_tag_image_url,
+    deep_tags_to_product_metadata,
+    TagMetadata,
+)
+from analyze.ecoscore import compute_eco_score
 
-# ---------- Lykdat Global Search config ----------
+# --- Lykdat Global Search config ---
 
 LYKDAT_GLOBAL_SEARCH_URL = "https://cloudapi.lykdat.com/v1/global/search"
 LYKDAT_API_ENV = "LYKDAT_API_KEY"
 
-# ---------- Gemini config (for product-page parsing) ----------
-GEMINI_API_ENV = "GEMINI_API_KEY"
+# --- Gemini config (for product-page parsing) ---
+
+GEMINI_API_ENV_PRIMARY = "GEMINI_API_KEY"
 
 try:
     import google.generativeai as genai
 except ImportError:  # pragma: no cover
     genai = None  # type: ignore
 
+
+# ---------------------------------------------------------------------------
+# Lykdat helpers
+# ---------------------------------------------------------------------------
 
 def _get_lykdat_api_key(explicit: Optional[str] = None) -> str:
     """Resolve the Lykdat API key (publishable)."""
@@ -40,11 +53,10 @@ def global_search_image_file(
     timeout: float = 20.0,
 ) -> Dict[str, Any]:
     """
-    Call Lykdat Global Search with an image file.
+    Call Lykdat Global Search with a local image file.
 
-    Uses /v1/global/search to search Lykdat's aggregated apparel catalog, which
-    spans popular clothing retailers and returns similar products with metadata
-    like name, brand, price, currency, and product URL.
+    Uses /v1/global/search to search Lykdat's aggregated apparel catalog and
+    returns similar_products under data.result_groups[].similar_products[].
     """
     key = _get_lykdat_api_key(api_key)
 
@@ -79,6 +91,110 @@ def global_search_image_file(
     return data.get("data") or data
 
 
+def _flatten_global_results(search_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Flatten data.result_groups[].similar_products[] into a single scored list.
+    """
+    result_groups = search_data.get("result_groups") or []
+
+    items: List[Dict[str, Any]] = []
+    for group in result_groups:
+        rank_score = group.get("rank_score")
+        for prod in group.get("similar_products") or []:
+            p = dict(prod)
+            p["_rank_score"] = rank_score
+            items.append(p)
+
+    # Sort by similarity score descending
+    items.sort(key=lambda p: float(p.get("score") or 0.0), reverse=True)
+    return items
+
+
+# ---------------------------------------------------------------------------
+# US bias helpers (currency + domain heuristics)
+# ---------------------------------------------------------------------------
+
+US_RETAILER_DOMAINS = [
+    # Expand / tweak this as needed
+    "macys.com",
+    "nordstrom.com",
+    "bloomingdales.com",
+    "urbanoutfitters.com",
+    "gap.com",
+    "oldnavy.com",
+    "bananarepublic.com",
+    "jcrew.com",
+    "ae.com",              # American Eagle
+    "abercrombie.com",
+    "hollisterco.com",
+    "levi.com",
+    "zappos.com",
+    "rei.com",
+    "dillards.com",
+    "kohls.com",
+    "target.com",
+    "walmart.com",
+    "backcountry.com",
+]
+
+
+def is_us_like_product(prod: Dict[str, Any]) -> bool:
+    """
+    Heuristic: consider a product "US-like" if:
+      - currency is USD, and
+      - (optionally) the retailer domain looks like a US retailer.
+
+    For hackathon/demo purposes this is good enough; it's not a legal definition
+    of "sold in the US".
+    """
+    currency = (prod.get("currency") or "").upper()
+    url = (prod.get("url") or "").lower()
+
+    if currency != "USD":
+        return False
+
+    # If no URL, but currency is USD, still accept it.
+    if not url:
+        return True
+
+    # Domain allowlist: prefer known US/on-US retailers
+    for dom in US_RETAILER_DOMAINS:
+        if dom in url:
+            return True
+
+    # If it's USD but not in the allowlist, you can choose:
+    # - return True to keep it, or
+    # - return False to be stricter.
+    # For now, be lenient:
+    return True
+
+
+def select_us_biased_products(
+    flat_products: List[Dict[str, Any]],
+    max_results: int,
+) -> List[Dict[str, Any]]:
+    """
+    Take a flat, score-sorted product list and:
+      - first keep all products that look "US-like",
+      - then top up with non-US products if there are fewer than max_results.
+
+    This way you mostly see US products, but you still get k results even if
+    the global search didn't return enough US ones.
+    """
+    us_like = [p for p in flat_products if is_us_like_product(p)]
+    non_us = [p for p in flat_products if p not in us_like]
+
+    if len(us_like) >= max_results:
+        return us_like[:max_results]
+
+    needed = max_results - len(us_like)
+    return us_like + non_us[:needed]
+
+
+# ---------------------------------------------------------------------------
+# Gemini helpers (for product pages → tag-like metadata)
+# ---------------------------------------------------------------------------
+
 def _configure_gemini(explicit_key: Optional[str] = None) -> str:
     """Configure google-generativeai with an API key and return it."""
     if genai is None:
@@ -86,57 +202,69 @@ def _configure_gemini(explicit_key: Optional[str] = None) -> str:
             "google-generativeai is not installed. Install via `pip install google-generativeai`."
         )
 
-    key = explicit_key or os.getenv(GEMINI_API_ENV)
+    key = explicit_key or os.getenv(GEMINI_API_ENV_PRIMARY)
     if not key:
         raise RuntimeError(
-            f"Missing Gemini API key. Set {GEMINI_API_ENV} in the environment, "
-            "or pass gemini_api_key to the function."
+            f"Missing Gemini API key. Set {GEMINI_API_ENV_PRIMARY}."
         )
 
     genai.configure(api_key=key)
     return key
 
 
-def gemini_parse_product_html(
-    html: str,
-    source_url: str,
+def gemini_parse_product_text_to_tag_structured(
+    product_text: str,
     api_key: Optional[str] = None,
     model_name: str = "gemini-2.5-flash",
 ) -> Dict[str, Any]:
     """
-    Ask Gemini to parse a clothing product page HTML into structured metadata.
-
-    The goal is to normalize different retailer schemas into a common shape.
+    Parse text/HTML scraped from a clothing product page into the same JSON
+    schema used for tag_structured (brand, product_name, materials, origin, etc.).
     """
+    # Trim to avoid huge prompts
+    text = product_text[:15000]
+
     _configure_gemini(api_key)
 
     system_prompt = (
-        "You are a fashion product metadata parser. You receive raw HTML from a "
-        "single product detail page (PDP) for a clothing item.\n"
-        "Extract as much structured metadata as you can and return ONLY valid JSON."
+        "You are an assistant that parses clothing product pages or descriptions.\n"
+        "You receive text/HTML that may include brand, product name, materials,\n"
+        "country of origin, size, and care instructions. You must extract as much\n"
+        "structured metadata as possible in the same schema as a clothing tag.\n"
+        "Return ONLY valid JSON, no commentary."
     )
 
     user_prompt = f"""
-You are given the raw HTML from a clothing product page at:
+You are given text scraped from an online clothing product page.
+It may include brand, product name, materials, origin, size, care instructions, etc.
 
-{source_url}
+Text:
 
-HTML (possibly truncated):
+\"\"\"{text}\"\"\"
 
-\"\"\"{html[:15000]}\"\"\"  # keep it bounded for safety
-
-From this, extract the product's metadata and return strictly valid JSON
-with the following shape (include fields even if null):
+Extract all the metadata you can find and return strictly valid JSON with this shape
+(include fields even if null):
 
 {{
   "brand": string or null,
   "product_name": string or null,
-  "materials": string or null,           // e.g. "80% cotton, 20% polyester"
-  "origin": string or null,              // e.g. "Made in Bangladesh"
-  "certifications": [string],            // e.g. "GOTS", "Fairtrade"
-  "price": number or null,               // numeric price if you can parse one
-  "currency": string or null,            // e.g. "USD", "EUR"
-  "eco_notes": string or null            // short note about any sustainability info
+  "size": string or null,
+  "material_composition": [
+    {{
+      "material": string,
+      "percentage": number or null
+    }}
+  ],
+  "materials": string or null,
+  "made_in": string or null,
+  "country_of_origin": string or null,
+  "origin": string or null,
+  "certifications": [string],
+  "care_instructions": [string],
+  "symbols": [string],
+  "other_text": string or null,
+  "price": number or null,
+  "currency": string or null
 }}
 
 Do NOT wrap the JSON in backticks. Do NOT add explanations.
@@ -159,6 +287,7 @@ Only output the JSON object.
     try:
         data = json.loads(raw_text)
     except json.JSONDecodeError:
+        # Try to salvage a JSON substring
         start = raw_text.find("{")
         end = raw_text.rfind("}")
         if start != -1 and end != -1 and end > start:
@@ -172,142 +301,173 @@ Only output the JSON object.
     return data
 
 
-def _lykdat_to_product_metadata_list(
-    search_data: Dict[str, Any],
-    max_results: int = 10,
-) -> List[ProductMetadata]:
+# ---------------------------------------------------------------------------
+# Per-product: Deep Tagging + Gemini + merge → same schema as main object
+# + EcoScore
+# ---------------------------------------------------------------------------
+
+def _build_similar_product_object(
+    prod: Dict[str, Any],
+    lykdat_api_key: Optional[str],
+    gemini_api_key: Optional[str],
+) -> Dict[str, Any]:
     """
-    Convert Lykdat Global Search 'data' payload into a list of ProductMetadata.
+    For a single Lykdat similar_products entry, run a full pipeline:
 
-    We flatten over all result_groups[].similar_products[] and sort by score.
+      - Deep Tagging on the product image (Lykdat /detection/tags)
+      - Fetch product page HTML and parse with Gemini into tag_structured
+      - Merge into a combined_product_metadata (ProductMetadata)
+      - Compute EcoScore
+      - Return an object with the SAME schema as the main combined object:
+        {
+          clothing_image_path,
+          tag_image_path,
+          lykdat_deep_tag_raw,
+          tag_ocr_text,
+          tag_structured,
+          tag_extra_fields,
+          combined_product_metadata,
+          eco_score
+        }
     """
-    result_groups = search_data.get("result_groups") or []
+    product_url = prod.get("url") or ""
 
-    items: List[Dict[str, Any]] = []
-    for group in result_groups:
-        for prod in group.get("similar_products") or []:
-            prod = dict(prod)
-            prod["_group_rank_score"] = group.get("rank_score")
-            items.append(prod)
+    # --- Choose an image URL for this product ---
+    image_url: Optional[str] = None
+    images = prod.get("images") or []
+    if images:
+        image_url = images[0]
+    if not image_url and prod.get("matching_image"):
+        image_url = prod["matching_image"]
 
-    # Sort by product score (descending)
-    items.sort(key=lambda p: float(p.get("score", 0.0)), reverse=True)
+    if not image_url:
+        raise RuntimeError("No image URL found for similar product")
 
-    out: List[ProductMetadata] = []
-    for prod in items[:max_results]:
-        url = prod.get("url") or ""
-        name = prod.get("name") or "Clothing item"
-        brand = prod.get("brand_name")
-        price_str = prod.get("price")
-        price_val: Optional[float] = None
-        if price_str is not None:
-            try:
-                price_val = float(price_str)
-            except (TypeError, ValueError):
-                price_val = None
+    # --- Deep Tagging on similar product image ---
+    deep_tags: DeepTagResult = deep_tag_image_url(image_url, api_key=lykdat_api_key)
+    product_from_lykdat: ProductMetadata = deep_tags_to_product_metadata(
+        deep_tags,
+        source_url=product_url or image_url,
+    )
 
-        currency = prod.get("currency")
-        gender = prod.get("gender")
-        category = prod.get("category")
-        sub_category = prod.get("sub_category")
-        vendor = prod.get("vendor")
+    # --- Fetch product page text (HTML) ---
+    page_text: str = ""
+    if product_url:
+        html = safe_get(product_url, timeout=10.0)
+        if html:
+            page_text = html
 
-        notes_parts: List[str] = []
-        if gender:
-            notes_parts.append(f"gender: {gender}")
-        if category:
-            notes_parts.append(f"category: {category}")
-        if sub_category:
-            notes_parts.append(f"sub_category: {sub_category}")
-        if vendor:
-            notes_parts.append(f"vendor: {vendor}")
+    # --- Gemini parsing into tag_structured ---
+    tag_structured: Dict[str, Any] = {}
+    tag_meta: TagMetadata = TagMetadata(
+        brand=None,
+        product_name=None,
+        materials=None,
+        origin=None,
+        certifications=[],
+        size=None,
+        care_instructions=[],
+        extra_fields={},
+        raw_text=page_text,
+        raw_structured={},
+    )
 
-        eco_notes = "; ".join(notes_parts) if notes_parts else None
-
-        out.append(
-            ProductMetadata(
-                url=url,
-                title=name,
-                brand=brand,
-                product_name=name,
-                materials=None,
-                origin=None,
-                certifications=[],
-                price=price_val,
-                currency=currency,
-                eco_notes=eco_notes,
-            )
-        )
-
-    return out
-
-
-def _enrich_with_gemini(
-    base_meta: ProductMetadata,
-    product_html: Optional[str],
-    source_url: str,
-    gemini_api_key: Optional[str] = None,
-) -> ProductMetadata:
-    """If we have HTML, ask Gemini to refine product metadata."""
-    if not product_html:
-        return base_meta
-
-    try:
-        parsed = gemini_parse_product_html(
-            html=product_html,
-            source_url=source_url,
-            api_key=gemini_api_key,
-        )
-    except Exception as e:
-        # Best-effort: log and fall back to base metadata
-        print(f"[warn] Gemini parse failed for {source_url}: {e}")
-        return base_meta
-
-    brand = parsed.get("brand") or base_meta.brand
-    product_name = parsed.get("product_name") or base_meta.product_name
-    materials = parsed.get("materials") or base_meta.materials
-    origin = parsed.get("origin") or base_meta.origin
-
-    certifications = list(base_meta.certifications)
-    parsed_certs = parsed.get("certifications") or []
-    if isinstance(parsed_certs, str):
-        parsed_certs = [parsed_certs]
-    for c in parsed_certs:
-        if c and c not in certifications:
-            certifications.append(str(c))
-
-    price = base_meta.price
-    if parsed.get("price") is not None:
+    if page_text:
         try:
-            price = float(parsed["price"])
+            structured = gemini_parse_product_text_to_tag_structured(
+                page_text,
+                api_key=gemini_api_key,
+            )
+            tag_structured = structured
+            tag_meta = TagMetadata.from_gemini_response(page_text, structured)
+        except Exception as e:
+            print(f"[warn] Gemini product parse failed for {product_url}: {e}", file=sys.stderr)
+
+    # --- Merge DeepTag + tag_meta + Lykdat search metadata into ProductMetadata ---
+
+    # Price and currency from Lykdat search
+    price_val: Optional[float] = None
+    if prod.get("price") is not None:
+        try:
+            price_val = float(prod["price"])
+        except (TypeError, ValueError):
+            price_val = None
+
+    currency: Optional[str] = prod.get("currency")
+
+    # Optionally override price/currency from Gemini if present
+    if tag_structured.get("price") is not None:
+        try:
+            price_val = float(tag_structured["price"])
         except (TypeError, ValueError):
             pass
 
-    currency = parsed.get("currency") or base_meta.currency
+    if tag_structured.get("currency"):
+        currency = str(tag_structured["currency"])
 
-    eco_notes = base_meta.eco_notes
-    parsed_eco = parsed.get("eco_notes")
-    if parsed_eco:
-        if eco_notes:
-            eco_notes = eco_notes + " | " + str(parsed_eco)
-        else:
-            eco_notes = str(parsed_eco)
+    # Certifications: from deep tags + tag_meta
+    certifications: List[str] = list(product_from_lykdat.certifications)
+    for c in tag_meta.certifications:
+        if c and c not in certifications:
+            certifications.append(c)
 
-    return ProductMetadata(
-        url=base_meta.url,
-        title=product_name or base_meta.title,
+    # Eco notes: combine image-based notes + size/care
+    notes_parts: List[str] = []
+    if product_from_lykdat.eco_notes:
+        notes_parts.append(product_from_lykdat.eco_notes)
+    if tag_meta.size:
+        notes_parts.append(f"size: {tag_meta.size}")
+    if tag_meta.care_instructions:
+        notes_parts.append("care: " + "; ".join(tag_meta.care_instructions))
+
+    eco_notes = "; ".join(notes_parts) if notes_parts else None
+
+    # Brand and title / product_name
+    brand_from_search = prod.get("brand_name")
+    brand = tag_meta.brand or product_from_lykdat.brand or brand_from_search
+
+    product_name = tag_meta.product_name or product_from_lykdat.product_name or prod.get("name")
+    title = product_name or product_from_lykdat.title or prod.get("name") or "Clothing item"
+
+    combined_product = ProductMetadata(
+        url=product_url or product_from_lykdat.url,
+        title=title,
         brand=brand,
-        product_name=product_name or base_meta.product_name,
-        materials=materials,
-        origin=origin,
+        product_name=product_name,
+        materials=tag_meta.materials or product_from_lykdat.materials,
+        origin=tag_meta.origin or product_from_lykdat.origin,
         certifications=certifications,
-        price=price,
+        price=price_val,
         currency=currency,
         eco_notes=eco_notes,
     )
 
+    # --- EcoScore for this similar product ---
+    eco = compute_eco_score(
+        product=combined_product,
+        tag_structured=tag_structured,
+        lykdat_raw=deep_tags.raw,
+        gemini_api_key=gemini_api_key,
+    )
 
-def find_similar_clothing_with_metadata(
+    # Return object with SAME schema as your main combined object (+ eco_score)
+    return {
+        "clothing_image_path": image_url,   # for similar products, we use the product image URL
+        "tag_image_path": None,             # we don't have a separate physical tag image
+        "lykdat_deep_tag_raw": deep_tags.raw,
+        "tag_ocr_text": page_text,          # here this is "product page text" instead of OCR
+        "tag_structured": tag_structured,
+        "tag_extra_fields": tag_meta.extra_fields,
+        "combined_product_metadata": asdict(combined_product),
+        "eco_score": asdict(eco),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public API: similar products with same schema as main object
+# ---------------------------------------------------------------------------
+
+def find_similar_clothing_full_pipeline(
     clothing_image_path: str,
     max_results: int = 10,
     lykdat_api_key: Optional[str] = None,
@@ -316,36 +476,48 @@ def find_similar_clothing_with_metadata(
     """
     High-level pipeline:
 
-    1. Use Lykdat Global Search with the clothing image to find visually
+    1. Use Lykdat Global Search with the main clothing image to find visually
        similar apparel items from popular online stores.
-    2. Map the top K results to ProductMetadata.
-    3. For each result, optionally fetch the product page HTML and use Gemini
-       to normalize/enrich metadata (materials, origin, certifications, etc.).
-    4. Return a JSON-serializable list of product metadata dicts.
+    2. Bias results toward US-like products (USD + US-ish domains).
+    3. For each of the selected results:
+         - Run Deep Tagging on the product image.
+         - Fetch product page text and parse via Gemini into a tag-like schema.
+         - Merge into a combined ProductMetadata.
+         - Compute EcoScore.
+         - Wrap everything into an object with the SAME schema as the main one:
+           {
+             clothing_image_path,
+             tag_image_path,
+             lykdat_deep_tag_raw,
+             tag_ocr_text,
+             tag_structured,
+             tag_extra_fields,
+             combined_product_metadata,
+             eco_score
+           }
+    4. Return a list of these objects.
     """
-    # 1) Lykdat Global Search
     search_data = global_search_image_file(
         image_path=clothing_image_path,
         api_key=lykdat_api_key,
     )
 
-    # 2) Convert to ProductMetadata list
-    base_products = _lykdat_to_product_metadata_list(
-        search_data=search_data,
-        max_results=max_results,
-    )
+    flat_products = _flatten_global_results(search_data)
 
-    # 3) Enrich with Gemini using product HTML
-    enriched: List[ProductMetadata] = []
-    for pm in base_products:
-        html = safe_get(pm.url, timeout=10.0) if pm.url else None
-        enriched_pm = _enrich_with_gemini(
-            base_meta=pm,
-            product_html=html,
-            source_url=pm.url,
-            gemini_api_key=gemini_api_key,
-        )
-        enriched.append(enriched_pm)
+    # NEW: bias toward US-like products
+    selected_products = select_us_biased_products(flat_products, max_results)
 
-    # 4) Return as JSON-serializable dicts
-    return [asdict(p) for p in enriched]
+    out: List[Dict[str, Any]] = []
+    for prod in selected_products:
+        try:
+            item = _build_similar_product_object(
+                prod=prod,
+                lykdat_api_key=lykdat_api_key,
+                gemini_api_key=gemini_api_key,
+            )
+            out.append(item)
+        except Exception as e:
+            print(f"[warn] Failed to build similar product object: {e}", file=sys.stderr)
+            continue
+
+    return out
