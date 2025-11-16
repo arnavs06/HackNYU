@@ -7,71 +7,22 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { BottomTabParamList } from '../types';
+import { BottomTabParamList, Recommendation, RootStackParamList } from '../types';
+import ecoPicks from '../data/eco_picks.json';
 import SwipeableTab from '../components/SwipeableTab';
 
-type RecommendationsScreenNavigationProp = BottomTabNavigationProp<BottomTabParamList, 'Recommendations'>;
+type RecommendationsScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<BottomTabParamList, 'Recommendations'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
-interface Recommendation {
-  id: string;
-  title: string;
-  brand: string;
-  ecoScore: number;
-  material: string;
-  price: string;
-  description: string;
-}
-
-const mockRecommendations: Recommendation[] = [
-  {
-    id: '1',
-    title: 'Organic Cotton T-Shirt',
-    brand: 'EcoWear',
-    ecoScore: 95,
-    material: 'Organic Cotton',
-    price: '$28',
-    description: 'Soft, breathable, and sustainably made',
-  },
-  {
-    id: '2',
-    title: 'Recycled Polyester Jacket',
-    brand: 'GreenThread',
-    ecoScore: 82,
-    material: 'Recycled Polyester',
-    price: '$65',
-    description: 'Warm, durable, made from ocean plastic',
-  },
-  {
-    id: '3',
-    title: 'Hemp Blend Jeans',
-    brand: 'NatureDenim',
-    ecoScore: 88,
-    material: 'Hemp & Organic Cotton',
-    price: '$75',
-    description: 'Strong, comfortable, low water usage',
-  },
-  {
-    id: '4',
-    title: 'Bamboo Fabric Dress',
-    brand: 'EarthStyle',
-    ecoScore: 90,
-    material: 'Bamboo Rayon',
-    price: '$52',
-    description: 'Silky smooth, naturally antimicrobial',
-  },
-  {
-    id: '5',
-    title: 'Linen Button-Up Shirt',
-    brand: 'PureThreads',
-    ecoScore: 87,
-    material: 'European Linen',
-    price: '$45',
-    description: 'Breathable, elegant, biodegradable',
-  },
-];
+const recommendations: Recommendation[] = (ecoPicks as Recommendation[]).sort(
+  (a, b) => b.ecoScore - a.ecoScore,
+);
 
 export default function RecommendationsScreen() {
   const navigation = useNavigation<RecommendationsScreenNavigationProp>();
@@ -81,6 +32,20 @@ export default function RecommendationsScreen() {
     if (score >= 60) return '#D2DCB6';
     if (score >= 40) return '#d4a574';
     return '#c17a6e';
+  };
+
+  const handleViewDetails = (item: Recommendation) => {
+    const alternatives = recommendations
+      .filter((rec) => rec.id !== item.id)
+      .sort((a, b) => b.ecoScore - a.ecoScore);
+
+    const betterMatches = alternatives.filter((rec) => rec.ecoScore >= item.ecoScore);
+    const fallback = betterMatches.length > 0 ? betterMatches : alternatives;
+
+    navigation.navigate('RecommendationDetail', {
+      recommendation: item,
+      alternatives: fallback.slice(0, 5),
+    });
   };
 
   return (
@@ -136,9 +101,9 @@ export default function RecommendationsScreen() {
         {/* Recommendations List */}
         <View style={styles.recommendationsSection}>
           <Text style={styles.sectionTitle}>
-            {mockRecommendations.length} Recommendations
+            {recommendations.length} Recommendations
           </Text>
-          {mockRecommendations.map((item) => (
+          {recommendations.map((item) => (
             <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.7}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardLeft}>
@@ -166,7 +131,10 @@ export default function RecommendationsScreen() {
                 </View>
               </View>
               <Text style={styles.cardDescription}>{item.description}</Text>
-              <TouchableOpacity style={styles.viewButton}>
+              <TouchableOpacity
+                style={styles.viewButton}
+                onPress={() => handleViewDetails(item)}
+              >
                 <Text style={styles.viewButtonText}>View Details</Text>
                 <Ionicons name="arrow-forward" size={16} color="#778873" />
               </TouchableOpacity>

@@ -16,7 +16,7 @@ import { RootStackParamList, BottomTabParamList } from '../types';
 import SwipeableTab from '../components/SwipeableTab';
 
 type HomeScreenNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<BottomTabParamList, 'Scan'>,
+  BottomTabNavigationProp<BottomTabParamList, 'ScanButton'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 

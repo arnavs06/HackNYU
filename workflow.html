@@ -59,6 +59,28 @@
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
 
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #edf2f7;
+            color: #2d3748;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-pill.done {
+            color: #276749;
+            background: #c6f6d5;
+        }
+
+        .status-pill.todo {
+            color: #744210;
+            background: #feebc8;
+        }
+
         .workflow {
             display: flex;
             flex-direction: column;
@@ -231,7 +253,7 @@
 <body>
     <div class="container">
         <h1>🌿 EcoScan Workflow</h1>
-        <p class="subtitle">Mobile clothing scanner with AI-powered eco-impact analysis</p>
+        <p class="subtitle">Current state: Camera scan + in-app history are live; AI + Supabase scoring still pending.</p>
 
         <div class="tech-stack">
             <span class="tech-badge">📱 Expo + React Native</span>
@@ -245,7 +267,7 @@
             <div class="step">
                 <div class="step-number">1</div>
                 <div class="step-content">
-                    <div class="step-title">📸 User Scans Clothing Tag</div>
+                    <div class="step-title">📸 User Scans Clothing Tag <span class="status-pill done">✅ Live</span></div>
                     <div class="step-description">
                         User opens the mobile app and taps "Scan Item" button, which activates the device camera.
                     </div>
@@ -267,7 +289,7 @@
             <div class="step api-flow">
                 <div class="step-number">2</div>
                 <div class="step-content">
-                    <div class="step-title">📤 Send Image to Backend</div>
+                    <div class="step-title">📤 Send Image to Backend <span class="status-pill done">✅ Live</span></div>
                     <div class="step-description">
                         Mobile app uploads the captured image to the FastAPI backend via POST request.
                     </div>
@@ -289,7 +311,7 @@
             <div class="step ai-flow">
                 <div class="step-number">3</div>
                 <div class="step-content">
-                    <div class="step-title">🔍 Extract Info with Gemini Vision</div>
+                    <div class="step-title">🔍 Extract Info with Gemini Vision <span class="status-pill todo">⏳ TODO</span></div>
                     <div class="step-description">
                         Backend sends the image to Google Gemini Vision API to extract structured data from the clothing tag.
                     </div>
@@ -315,7 +337,7 @@
             <div class="step db-flow">
                 <div class="step-number">4</div>
                 <div class="step-content">
-                    <div class="step-title">📊 Calculate Eco-Score</div>
+                    <div class="step-title">📊 Calculate Eco-Score <span class="status-pill todo">⏳ TODO</span></div>
                     <div class="step-description">
                         Backend applies scoring logic using material and country data against rules stored in Supabase.
                     </div>
@@ -341,7 +363,7 @@
             <div class="step ai-flow">
                 <div class="step-number">5</div>
                 <div class="step-content">
-                    <div class="step-title">💬 Generate AI Explanation</div>
+                    <div class="step-title">💬 Generate AI Explanation <span class="status-pill todo">⏳ TODO</span></div>
                     <div class="step-description">
                         Backend calls Gemini Text model to create a human-readable explanation of the eco-score.
                     </div>
@@ -367,9 +389,9 @@
             <div class="step db-flow">
                 <div class="step-number">6</div>
                 <div class="step-content">
-                    <div class="step-title">💾 Store Scan History</div>
+                    <div class="step-title">💾 Store Scan History <span class="status-pill todo">⏳ TODO (Supabase)</span></div>
                     <div class="step-description">
-                        Backend saves the scan result to Supabase for user history and analytics.
+                        Backend still needs to push each scan into Supabase (currently only cached in memory / device).
                     </div>
                     <span class="component-tag">Supabase Insert</span>
                     <span class="component-tag">User History</span>
@@ -390,7 +412,7 @@
             <div class="step">
                 <div class="step-number">7</div>
                 <div class="step-content">
-                    <div class="step-title">📱 Display Results in App</div>
+                    <div class="step-title">📱 Display Results in App <span class="status-pill done">✅ Live</span></div>
                     <div class="step-description">
                         FastAPI returns JSON response to mobile app, which renders the results beautifully.
                     </div>
@@ -407,6 +429,29 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="step-details" style="margin-top:30px; border-left:4px solid #c05621;">
+            <h3 style="margin-bottom:10px; color:#c05621;">What still needs to ship?</h3>
+            <ul>
+                <li><strong>Gemini Vision/Text</strong>: implement real OCR + explanation so Step 3 & 5 stop using placeholders.</li>
+                <li><strong>FastAPI + analyze unification</strong>: swap the mock backend for the real two-image pipeline (`combine_lykdat_and_tag_metadata` + `find_similar_clothing_full_pipeline`).</li>
+                <li><strong>Supabase persistence</strong>: wire Step 4 & 6 to actual tables (materials, countries, scans) and expose history/stats endpoints the app can consume.</li>
+                <li><strong>Eco-scoring engine</strong>: translate Gemini output + Supabase rules into consistent grades/flags, then reuse the same transform for frontend + CLI.</li>
+                <li><strong>Recommendations/Search data</strong>: seed Supabase with sustainable products + hook Search/Recommendations/Database screens to live queries instead of static lists.</li>
+                <li><strong>Deletion & auth</strong>: hook history deletion + per-user storage once Supabase Auth is ready.</li>
+                <li><strong>Reliability + tests</strong>: add retries/telemetry around Lykdat/Gemini calls and cover `transform_to_frontend_format` + scoring heuristics with tests.</li>
+            </ul>
+        </div>
+
+        <div class="step-details" style="margin-top:20px; border-left:4px solid #2b6cb0;">
+            <h3 style="margin-bottom:10px; color:#2b6cb0;">Immediate TODO Backlog</h3>
+            <ul>
+                <li><strong>Backend parity:</strong> update `backend/app/main.py` so `/api/scan` accepts both `tag_image` + `clothing_image`, saves temp files, and returns the enriched payload already produced in `analyze/api_server.py`.</li>
+                <li><strong>Supabase schema:</strong> create `materials`, `countries`, `scans`, and `similar_products` tables plus a nightly job to cache Lykdat alternatives for use in Search/Recommendations.</li>
+                <li><strong>Frontend wiring:</strong> migrate `HistoryScreen` off AsyncStorage to real API data and refactor `SearchScreen`, `RecommendationsScreen`, and `DatabaseScreen` to query Supabase.</li>
+                <li><strong>Ops polish:</strong> add background task handling, request IDs, and monitoring so long-running Gemini/Lykdat calls surface errors quickly.</li>
+            </ul>
         </div>
 
         <!-- MVP Features Section -->

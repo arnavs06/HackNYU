@@ -216,11 +216,17 @@ export default function ScannerScreen() {
         >
           <View style={styles.bothImagesContainer}>
             <View style={styles.imagePreviewSmall}>
-              <Image source={{ uri: tagImage }} style={styles.previewImageSmall} />
+              <Image
+                source={tagImage ? { uri: tagImage } : undefined}
+                style={styles.previewImageSmall}
+              />
               <Text style={styles.imageLabel}>Clothing Tag</Text>
             </View>
             <View style={styles.imagePreviewSmall}>
-              <Image source={{ uri: clothingImage }} style={styles.previewImageSmall} />
+              <Image
+                source={clothingImage ? { uri: clothingImage } : undefined}
+                style={styles.previewImageSmall}
+              />
               <Text style={styles.imageLabel}>Clothing Item</Text>
             </View>
           </View>

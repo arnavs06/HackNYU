@@ -20,5 +20,12 @@ frontend/metro-health-check*
 # Environment files
 frontend/.env*
 analyze/.env
+backend/.env
+.env
+message.json
 !analyze/.env.example
+
+# Python build artifacts
+**/__pycache__/
+
 node_modules/

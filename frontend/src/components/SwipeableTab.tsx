@@ -25,7 +25,10 @@ export default function SwipeableTab({
         return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 5;
       },
       onPanResponderGrant: () => {
-        pan.setOffset(pan._value);
+        pan.stopAnimation((value) => {
+          pan.setOffset(value ?? 0);
+          pan.setValue(0);
+        });
       },
       onPanResponderMove: (_, gestureState) => {
         // Add resistance at the edges for a more natural feel

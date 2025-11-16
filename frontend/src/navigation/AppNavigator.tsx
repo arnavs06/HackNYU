@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, TouchableOpacityProps } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList, BottomTabParamList } from '../types';
 
@@ -12,6 +12,7 @@ import ResultsScreen from '../screens/ResultsScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import SearchScreen from '../screens/SearchScreen';
 import RecommendationsScreen from '../screens/RecommendationsScreen';
+import RecommendationDetailScreen from '../screens/RecommendationDetailScreen';
 import AccountScreen from '../screens/AccountScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,18 +65,26 @@ function TabNavigator() {
         name="ScanButton"
         component={ScanPlaceholder}
         options={({ navigation }) => ({
-          tabBarButton: (props) => (
-            <TouchableOpacity
-              {...props}
-              style={[props.style, tabStyles.scanButtonContainer]}
-              onPress={() => navigation.navigate('Scanner' as any)}
-              activeOpacity={0.8}
-            >
-              <View style={tabStyles.scanButton}>
-                <Ionicons name="camera" size={30} color="#F1F3E0" />
-              </View>
-            </TouchableOpacity>
-          ),
+          tabBarButton: ({ style, delayLongPress, disabled, ...rest }: BottomTabBarButtonProps) => {
+            const normalizedProps = Object.fromEntries(
+              Object.entries(rest).map(([key, value]) => [key, value ?? undefined])
+            ) as TouchableOpacityProps;
+
+            return (
+              <TouchableOpacity
+                {...normalizedProps}
+                delayLongPress={delayLongPress ?? undefined}
+                disabled={disabled ?? undefined}
+                style={[style, tabStyles.scanButtonContainer]}
+                onPress={() => navigation.navigate('Scanner' as never)}
+                activeOpacity={0.8}
+              >
+                <View style={tabStyles.scanButton}>
+                  <Ionicons name="camera" size={30} color="#F1F3E0" />
+                </View>
+              </TouchableOpacity>
+            );
+          },
         })}
       />
       <Tab.Screen
@@ -157,6 +166,13 @@ export default function AppNavigator() {
           component={ResultsScreen}
           options={{
             title: 'Scan Results',
+          }}
+        />
+        <Stack.Screen
+          name="RecommendationDetail"
+          component={RecommendationDetailScreen}
+          options={{
+            title: 'Eco Pick Details',
           }}
         />
       </Stack.Navigator>

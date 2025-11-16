@@ -54,6 +54,20 @@ export interface SimilarProduct {
   description?: string;
 }
 
+export interface Recommendation {
+  id: string;
+  title: string;
+  brand: string;
+  ecoScore: number;
+  material: string;
+  price: string;
+  description: string;
+  category?: string;
+  grade?: 'A' | 'B' | 'C' | 'D' | 'F';
+  url?: string;
+  currency?: string;
+}
+
 export interface ApiScanRequest {
   image: string; // base64 or file path
   userId?: string;
@@ -84,6 +98,10 @@ export type RootStackParamList = {
   Results: { scanResult: ScanResult };
   History: undefined;
   ScanDetail: { scanId: string };
+  RecommendationDetail: {
+    recommendation: Recommendation;
+    alternatives: Recommendation[];
+  };
 };
 
 export type BottomTabParamList = {

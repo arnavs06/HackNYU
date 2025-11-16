@@ -1,0 +1,80 @@
+[
+  {
+    "id": "pick_hemp_denim",
+    "title": "Hemp Blend Workwear Jacket",
+    "brand": "North Loop",
+    "material": "55% hemp, 45% organic cotton",
+    "ecoScore": 100,
+    "grade": "A",
+    "url": "https://example.com/northloop-jacket",
+    "price": "$148",
+    "currency": "USD",
+    "description": "Durable hemp canvas with organic cotton lining, sewn in a fair-trade facility.",
+    "category": "Outerwear"
+  },
+  {
+    "id": "pick_linen_dress",
+    "title": "European Linen Midi",
+    "brand": "Coastline Atelier",
+    "material": "100% linen",
+    "ecoScore": 100,
+    "grade": "A",
+    "url": "https://example.com/coastline-linen",
+    "price": "$165",
+    "currency": "USD",
+    "description": "Breathable linen sourced from low-impact flax farms with OEKO-TEX dyeing.",
+    "category": "Dresses"
+  },
+  {
+    "id": "pick_bamboo_set",
+    "title": "Bamboo Everyday Set",
+    "brand": "Kind Pulse",
+    "material": "70% bamboo lyocell, 30% organic cotton",
+    "ecoScore": 99,
+    "grade": "A",
+    "url": "https://example.com/kindpulse-set",
+    "price": "$98",
+    "currency": "USD",
+    "description": "Naturally cooling bamboo lyocell blended with cotton for year-round comfort.",
+    "category": "Loungewear"
+  },
+  {
+    "id": "pick_organic_tee",
+    "title": "Organic Cotton Daily Tee",
+    "brand": "Evergreen Threads",
+    "material": "100% organic cotton",
+    "ecoScore": 94,
+    "grade": "A",
+    "url": "https://example.com/evergreen-tee",
+    "price": "$32",
+    "currency": "USD",
+    "description": "Soft everyday tee knit from long-staple organic cotton with low-water dyeing.",
+    "category": "Tops"
+  },
+  {
+    "id": "pick_recycled_jogger",
+    "title": "Recycled Bottle Joggers",
+    "brand": "CycleForm",
+    "material": "85% recycled polyester, 15% elastane",
+    "ecoScore": 78,
+    "grade": "B",
+    "url": "https://example.com/cycleform-joggers",
+    "price": "$78",
+    "currency": "USD",
+    "description": "Technical joggers spun from post-consumer bottles with bluesign-approved finishing.",
+    "category": "Bottoms"
+  },
+  {
+    "id": "pick_repair_denim",
+    "title": "Repaired Vintage Denim",
+    "brand": "Second Stitch",
+    "material": "Upcycled cotton denim",
+    "ecoScore": 74,
+    "grade": "B",
+    "url": "https://example.com/secondstitch-denim",
+    "price": "$120",
+    "currency": "USD",
+    "description": "Rescued vintage denim re-cut and mended for a lower-impact wardrobe staple.",
+    "category": "Bottoms"
+  }
+]

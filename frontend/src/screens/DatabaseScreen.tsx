@@ -13,7 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { BottomTabParamList } from '../types';
 import SwipeableTab from '../components/SwipeableTab';
 
-type DatabaseScreenNavigationProp = BottomTabNavigationProp<BottomTabParamList, 'Database'>;
+type DatabaseScreenNavigationProp = BottomTabNavigationProp<BottomTabParamList>;
 
 interface MaterialData {
   id: string;

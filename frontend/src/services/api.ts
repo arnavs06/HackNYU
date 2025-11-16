@@ -5,7 +5,7 @@ import { ApiScanRequest, ApiScanResponse, ScanResult } from '../types';
 // For local development, use your machine's IP address (not localhost)
 // Find IP: Windows: ipconfig | Mac/Linux: ifconfig
 const API_BASE_URL = __DEV__ 
-  ? 'http://10.253.68.183:8000/api'  // Your computer's local IP address
+  ? 'http://10.253.68.94:8000/api'  // Your computer's local IP address
   : 'https://your-production-backend.com/api';
 
 class ApiService {
