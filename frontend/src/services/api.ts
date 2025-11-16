@@ -4,7 +4,9 @@ import { ApiScanRequest, ApiScanResponse, ScanResult } from '../types';
 // Backend API URL
 // For local development, use your machine's IP address (not localhost)
 // Find IP: Windows: ipconfig | Mac/Linux: ifconfig
-const API_BASE_URL = 'https://hacknyu-production-2d1d.up.railway.app/api';
+const API_BASE_URL = __DEV__ 
+  ? 'http://10.253.68.183:8000/api'  // Your computer's local IP address
+  : 'https://your-production-backend.com/api';
 
 class ApiService {
   private client: AxiosInstance;
@@ -181,9 +183,10 @@ class ApiService {
         ecoScore: scan.ecoScore,
         brand: scan.brand,
         timestamp: scan.timestamp,
+        imageUri: scan.imageUri,
       }));
 
-      // Add user_id and scan_history as form fields
+      // Add form fields
       formData.append('user_id', userId);
       formData.append('scan_history', JSON.stringify(historyData));
 
@@ -202,6 +205,7 @@ class ApiService {
 
       console.log('🎯 Requesting personalized picks...');
       console.log(`   User: ${userId}, History items: ${historyData.length}`);
+      console.log(`   Reference image: ${referenceImageUri ? 'YES' : 'NO'}`);
 
       const response = await this.client.post('/picks', formData, {
         headers: {

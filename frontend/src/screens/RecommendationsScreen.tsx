@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ export default function RecommendationsScreen() {
   const [analysis, setAnalysis] = useState<any>(null);
   const [useDynamicPicks, setUseDynamicPicks] = useState(false);
   const [scanCount, setScanCount] = useState(0);
+  const hasLoadedPicksRef = useRef(false); // Track if picks have been loaded this session
 
   // Load personalized picks on screen focus only if scan count changed
   useFocusEffect(
@@ -49,12 +50,17 @@ export default function RecommendationsScreen() {
     const lastProcessedCount = await storageService.getLastPicksCount();
     
     console.log('📊 Current scan count:', currentCount, '| Last processed:', lastProcessedCount);
+    console.log('   Has loaded picks this session:', hasLoadedPicksRef.current);
     
-    // Only load if count has changed (new scan added)
-    if (currentCount !== lastProcessedCount) {
-      console.log('🔄 Loading picks - scan count changed:', lastProcessedCount, '->', currentCount);
+    // Load if: 1) count changed (new scan), OR 2) never loaded in this session and we have enough scans
+    const shouldLoad = currentCount !== lastProcessedCount || 
+                       (!hasLoadedPicksRef.current && currentCount >= 3);
+    
+    if (shouldLoad) {
+      console.log('🔄 Loading picks - reason:', currentCount !== lastProcessedCount ? 'count changed' : 'initial load');
       setScanCount(currentCount);
       await storageService.setLastPicksCount(currentCount);
+      hasLoadedPicksRef.current = true; // Mark as loaded
       loadPersonalizedPicks();
     } else {
       console.log('✓ No new scans, skipping refresh');
