@@ -30,9 +30,9 @@ function TabNavigator() {
         tabBarStyle: {
           backgroundColor: '#F1F3E0',
           borderTopColor: '#D2DCB6',
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 65,
+          paddingBottom: 12,
+          paddingTop: 12,
+          height: 80,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -113,14 +113,14 @@ function TabNavigator() {
 
 const tabStyles = StyleSheet.create({
   scanButtonContainer: {
-    top: -30,
+    top: -35,
     justifyContent: 'center',
     alignItems: 'center',
   },
   scanButton: {
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: '#778873',
     justifyContent: 'center',
     alignItems: 'center',

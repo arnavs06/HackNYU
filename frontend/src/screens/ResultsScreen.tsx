@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Share,
+  Linking,
+  Alert,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -59,6 +61,20 @@ export default function ResultsScreen() {
 
   const handleScanAnother = () => {
     navigation.navigate('Scanner');
+  };
+
+  const handleOpenUrl = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'Cannot open this URL');
+      }
+    } catch (error) {
+      console.error('Error opening URL:', error);
+      Alert.alert('Error', 'Failed to open the URL');
+    }
   };
 
   return (
@@ -191,7 +207,7 @@ export default function ResultsScreen() {
               {product.url && (
                 <TouchableOpacity 
                   style={styles.alternativeLink}
-                  onPress={() => {/* Could open URL in browser */}}
+                  onPress={() => handleOpenUrl(product.url!)}
                 >
                   <Text style={styles.alternativeLinkText}>View Product</Text>
                   <Ionicons name="arrow-forward" size={16} color="#A1BC98" />
