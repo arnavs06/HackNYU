@@ -3,6 +3,7 @@ import sys
 import mimetypes
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
+import concurrent.futures  # <-- add this
 
 import requests
 
@@ -472,6 +473,7 @@ def find_similar_clothing_full_pipeline(
     max_results: int = 10,
     lykdat_api_key: Optional[str] = None,
     gemini_api_key: Optional[str] = None,
+    max_workers: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
     High-level pipeline:
@@ -479,24 +481,15 @@ def find_similar_clothing_full_pipeline(
     1. Use Lykdat Global Search with the main clothing image to find visually
        similar apparel items from popular online stores.
     2. Bias results toward US-like products (USD + US-ish domains).
-    3. For each of the selected results:
+    3. For each of the selected results (in parallel when possible):
          - Run Deep Tagging on the product image.
          - Fetch product page text and parse via Gemini into a tag-like schema.
          - Merge into a combined ProductMetadata.
          - Compute EcoScore.
-         - Wrap everything into an object with the SAME schema as the main one:
-           {
-             clothing_image_path,
-             tag_image_path,
-             lykdat_deep_tag_raw,
-             tag_ocr_text,
-             tag_structured,
-             tag_extra_fields,
-             combined_product_metadata,
-             eco_score
-           }
+         - Wrap everything into an object with the SAME schema as the main one.
     4. Return a list of these objects.
     """
+    # 1) Lykdat global search
     search_data = global_search_image_file(
         image_path=clothing_image_path,
         api_key=lykdat_api_key,
@@ -504,20 +497,50 @@ def find_similar_clothing_full_pipeline(
 
     flat_products = _flatten_global_results(search_data)
 
-    # NEW: bias toward US-like products
+    # 2) Bias toward US-like products
     selected_products = select_us_biased_products(flat_products, max_results)
 
-    out: List[Dict[str, Any]] = []
-    for prod in selected_products:
+    if not selected_products:
+        return []
+
+    # 3) Decide how many threads to use
+    if max_workers is None:
+        # sensible default: up to 8 concurrent products, but not more than we have
+        max_workers = min(8, len(selected_products))
+
+    # If max_workers == 1, fall back to the old sequential path
+    if max_workers <= 1:
+        out: List[Dict[str, Any]] = []
+        for prod in selected_products:
+            try:
+                item = _build_similar_product_object(
+                    prod=prod,
+                    lykdat_api_key=lykdat_api_key,
+                    gemini_api_key=gemini_api_key,
+                )
+                out.append(item)
+            except Exception as e:
+                print(f"[warn] Failed to build similar product object: {e}", file=sys.stderr)
+                continue
+        return out
+
+    # 4) Parallel worker
+    def _worker(prod: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
-            item = _build_similar_product_object(
+            return _build_similar_product_object(
                 prod=prod,
                 lykdat_api_key=lykdat_api_key,
                 gemini_api_key=gemini_api_key,
             )
-            out.append(item)
         except Exception as e:
             print(f"[warn] Failed to build similar product object: {e}", file=sys.stderr)
-            continue
+            return None
 
+    # 5) Run the per-product pipeline in parallel, preserving order
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_worker, selected_products))
+
+    # Filter out failures
+    out: List[Dict[str, Any]] = [r for r in results if r is not None]
     return out
+
