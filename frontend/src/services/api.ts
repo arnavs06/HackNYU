@@ -5,8 +5,9 @@ import { ApiScanRequest, ApiScanResponse, ScanResult } from '../types';
 // For local development, use your machine's IP address (not localhost)
 // Find IP: Windows: ipconfig | Mac/Linux: ifconfig
 const API_BASE_URL = __DEV__ 
-  ? 'http://10.253.68.183:8000/api'  // Your computer's local IP address
+  ? 'http://10.253.68.94:8000/api'  // Your computer's local IP address
   : 'https://your-production-backend.com/api';
+const PICKS_TIMEOUT_MS = 180000; // allow 3 minutes for similarity pipeline
 class ApiService {
   private client: AxiosInstance;
 
@@ -210,7 +211,7 @@ class ApiService {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 60000, // 60 seconds for picks generation
+        timeout: PICKS_TIMEOUT_MS,
       });
 
       console.log('✅ Picks generated successfully!');
