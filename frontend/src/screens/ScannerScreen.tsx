@@ -183,7 +183,10 @@ export default function ScannerScreen() {
           </View>
         </View>
         
-        <Image source={{ uri: tagImage }} style={styles.preview} />
+        <Image
+          source={tagImage ? { uri: tagImage } : undefined}
+          style={styles.preview}
+        />
         
         <View style={styles.previewInfo}>
           <Ionicons name="checkmark-circle" size={32} color="#A1BC98" />
@@ -226,11 +229,17 @@ export default function ScannerScreen() {
         >
           <View style={styles.bothImagesContainer}>
             <View style={styles.imagePreviewSmall}>
-              <Image source={{ uri: tagImage }} style={styles.previewImageSmall} />
+              <Image
+                source={tagImage ? { uri: tagImage } : undefined}
+                style={styles.previewImageSmall}
+              />
               <Text style={styles.imageLabel}>Clothing Tag</Text>
             </View>
             <View style={styles.imagePreviewSmall}>
-              <Image source={{ uri: clothingImage }} style={styles.previewImageSmall} />
+              <Image
+                source={clothingImage ? { uri: clothingImage } : undefined}
+                style={styles.previewImageSmall}
+              />
               <Text style={styles.imageLabel}>Clothing Item</Text>
             </View>
           </View>
