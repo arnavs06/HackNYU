@@ -52,6 +52,9 @@ def global_search_image_file(
     image_path: str,
     api_key: Optional[str] = None,
     timeout: float = 20.0,
+    gender: Optional[str] = None,          # "male" / "female" / "unisex"
+    for_adults: Optional[bool] = None,     # True / False
+    implicitly_filter_categories: bool = True,
 ) -> Dict[str, Any]:
     """
     Call Lykdat Global Search with a local image file.
@@ -69,6 +72,16 @@ def global_search_image_file(
         payload = {
             "api_key": key,
         }
+
+        if gender:
+            payload["filter_gender"] = gender
+
+        if for_adults is not None:
+            payload["filter_for_adults"] = 1 if for_adults else 0
+
+        if implicitly_filter_categories:
+            payload["implicitly_filter_categories"] = 1
+            
         resp = requests.post(
             LYKDAT_GLOBAL_SEARCH_URL,
             data=payload,
@@ -216,7 +229,8 @@ def _configure_gemini(explicit_key: Optional[str] = None) -> str:
 def gemini_parse_product_text_to_tag_structured(
     product_text: str,
     api_key: Optional[str] = None,
-    model_name: str = "gemini-2.5-flash",
+    # model_name: str = "gemini-2.5-flash",
+    model_name: str = "gemini-flash-lite-latest",
 ) -> Dict[str, Any]:
     """
     Parse text/HTML scraped from a clothing product page into the same JSON
