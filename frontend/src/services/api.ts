@@ -4,9 +4,7 @@ import { ApiScanRequest, ApiScanResponse, ScanResult } from '../types';
 // Backend API URL
 // For local development, use your machine's IP address (not localhost)
 // Find IP: Windows: ipconfig | Mac/Linux: ifconfig
-const API_BASE_URL = __DEV__ 
-  ? 'http://10.253.68.94:8000/api'  // Your computer's local IP address
-  : 'https://your-production-backend.com/api';
+const API_BASE_URL = 'https://hacknyu-production-2d1d.up.railway.app/api';
 
 class ApiService {
   private client: AxiosInstance;
