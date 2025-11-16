@@ -85,7 +85,7 @@ const generateMockScanResult = (): ScanResult => {
 export class MockApiService {
   private scans: ScanResult[] = [];
 
-  async scanClothingTag(imageUri: string, userId?: string): Promise<ApiScanResponse> {
+  async scanClothingTag(imageUri: string, userId: string = 'user_123'): Promise<ApiScanResponse> {
     console.log('🧪 MOCK API: Scanning image...', imageUri);
     
     // Simulate API delay
@@ -101,8 +101,21 @@ export class MockApiService {
 
     const scanResult = generateMockScanResult();
     scanResult.imageUri = imageUri;
+    scanResult.userId = userId;
     
-    // Store in mock history
+    // Save to Supabase (user history + global catalog)
+    try {
+      const { supabaseService } = await import('./supabaseService');
+      await Promise.all([
+        supabaseService.saveScanToHistory(scanResult, userId),
+        supabaseService.addProductToCatalog(scanResult),
+      ]);
+      console.log('✅ Saved to Supabase!');
+    } catch (error) {
+      console.error('⚠️ Failed to save to Supabase (using mock only):', error);
+    }
+    
+    // Store in mock history (fallback)
     this.scans.unshift(scanResult);
     if (this.scans.length > 50) {
       this.scans = this.scans.slice(0, 50);
@@ -115,19 +128,27 @@ export class MockApiService {
   }
 
   async getScanHistory(userId: string, limit: number = 20): Promise<ScanResult[]> {
-    console.log('🧪 MOCK API: Fetching scan history...');
-    await delay(500);
+    console.log('🧪 Fetching scan history from Supabase...');
     
-    // Generate some mock history if empty
-    if (this.scans.length === 0) {
-      for (let i = 0; i < 5; i++) {
-        const scan = generateMockScanResult();
-        scan.timestamp = new Date(Date.now() - i * 86400000).toISOString(); // Days ago
-        this.scans.push(scan);
+    try {
+      const { supabaseService } = await import('./supabaseService');
+      const history = await supabaseService.getUserHistory(userId, limit);
+      console.log(`✅ Fetched ${history.length} scans from Supabase`);
+      return history;
+    } catch (error) {
+      console.error('⚠️ Failed to fetch from Supabase, using mock data:', error);
+      
+      // Fallback: Generate some mock history if empty
+      if (this.scans.length === 0) {
+        for (let i = 0; i < 5; i++) {
+          const scan = generateMockScanResult();
+          scan.timestamp = new Date(Date.now() - i * 86400000).toISOString(); // Days ago
+          this.scans.push(scan);
+        }
       }
+      
+      return this.scans.slice(0, limit);
     }
-    
-    return this.scans.slice(0, limit);
   }
 
   async getScanById(scanId: string): Promise<ScanResult> {
@@ -149,20 +170,27 @@ export class MockApiService {
   }
 
   async getUserStats(userId: string): Promise<any> {
-    console.log('🧪 MOCK API: Fetching user stats...');
-    await delay(500);
+    console.log('🧪 Fetching user stats from Supabase...');
     
-    const scores = this.scans.map(s => s.ecoScore.score);
-    const avgScore = scores.length > 0 
-      ? scores.reduce((a, b) => a + b, 0) / scores.length 
-      : 0;
+    try {
+      const { supabaseService } = await import('./supabaseService');
+      return await supabaseService.getUserStats(userId);
+    } catch (error) {
+      console.error('⚠️ Failed to fetch stats from Supabase:', error);
+      await delay(500);
+      
+      const scores = this.scans.map(s => s.ecoScore.score);
+      const avgScore = scores.length > 0 
+        ? scores.reduce((a, b) => a + b, 0) / scores.length 
+        : 0;
 
-    return {
-      totalScans: this.scans.length,
-      averageScore: Math.round(avgScore),
-      mostCommonMaterial: '100% Cotton',
-      improvementTrend: 12, // percentage
-    };
+      return {
+        totalScans: this.scans.length,
+        averageScore: Math.round(avgScore),
+        mostCommonMaterial: '100% Cotton',
+        improvementTrend: 12, // percentage
+      };
+    }
   }
 }
 

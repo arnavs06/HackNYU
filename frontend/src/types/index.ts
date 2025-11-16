@@ -35,6 +35,24 @@ export interface ScanResult {
   confidence?: number;
   imageUri?: string;
   improvementTips?: string[];
+  userId?: string; // For database storage
+}
+
+// Product metadata for search catalog (matches base.py)
+export interface ProductMetadata {
+  id?: string;
+  title?: string;
+  brand?: string;
+  productName?: string;
+  materials: string;
+  origin: string;
+  certifications?: string[];
+  price?: number;
+  currency?: string;
+  ecoNotes?: string;
+  ecoScore: EcoScore;
+  scanCount?: number;
+  lastUpdated?: string;
 }
 
 export interface ApiScanRequest {

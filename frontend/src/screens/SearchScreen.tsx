@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,50 +7,57 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { BottomTabParamList } from '../types';
+// import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { BottomTabParamList, ProductMetadata } from '../types';
+import { supabaseService } from '../services/supabaseService';
 import SwipeableTab from '../components/SwipeableTab';
 
 type SearchScreenNavigationProp = BottomTabNavigationProp<BottomTabParamList, 'Search'>;
 
-interface SearchResult {
-  id: string;
-  material: string;
-  score: number;
-  category: string;
-}
-
 export default function SearchScreen() {
   const navigation = useNavigation<SearchScreenNavigationProp>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<ProductMetadata[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Mock search data
-  const mockMaterials = [
-    { id: '1', material: 'Organic Cotton', score: 92, category: 'Natural' },
-    { id: '2', material: 'Recycled Polyester', score: 78, category: 'Synthetic' },
-    { id: '3', material: 'Bamboo', score: 88, category: 'Natural' },
-    { id: '4', material: 'Hemp', score: 90, category: 'Natural' },
-    { id: '5', material: 'Linen', score: 85, category: 'Natural' },
-    { id: '6', material: 'Conventional Cotton', score: 45, category: 'Natural' },
-    { id: '7', material: 'Polyester', score: 35, category: 'Synthetic' },
-    { id: '8', material: 'Wool', score: 72, category: 'Animal' },
-  ];
+  // Load initial products
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim() === '') {
-      setSearchResults([]);
-      return;
+  const loadProducts = async () => {
+    setIsLoading(true);
+    try {
+      const products = await supabaseService.getAllProducts(50);
+      setSearchResults(products);
+      console.log(`✅ Loaded ${products.length} products from database`);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    } finally {
+      setIsLoading(false);
+      setIsInitialLoad(false);
     }
+  };
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    setIsLoading(true);
     
-    const filtered = mockMaterials.filter(item =>
-      item.material.toLowerCase().includes(query.toLowerCase())
-    );
-    setSearchResults(filtered);
+    try {
+      const results = await supabaseService.searchProducts(query);
+      setSearchResults(results);
+      console.log(`✅ Found ${results.length} products`);
+    } catch (error) {
+      console.error('Error searching products:', error);
+      setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getScoreColor = (score: number) => {
@@ -60,24 +67,29 @@ export default function SearchScreen() {
     return '#c17a6e';
   };
 
-  const renderSearchResult = ({ item }: { item: SearchResult }) => (
+  const renderSearchResult = ({ item }: { item: ProductMetadata }) => (
     <TouchableOpacity style={styles.resultCard} activeOpacity={0.7}>
       <View style={styles.resultContent}>
-        <MaterialCommunityIcons name="leaf" size={32} color="#778873" />
+        <Text style={styles.resultEmoji}>👕</Text>
         <View style={styles.resultInfo}>
-          <Text style={styles.resultTitle}>{item.material}</Text>
-          <Text style={styles.resultCategory}>{item.category}</Text>
+          <Text style={styles.resultTitle}>{item.materials}</Text>
+          <Text style={styles.resultCategory}>{item.origin}</Text>
+          {item.brand && <Text style={styles.resultBrand}>{item.brand}</Text>}
         </View>
-        <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.score) }]}>
-          <Text style={styles.scoreText}>{item.score}</Text>
+        <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.ecoScore.score) }]}>
+          <Text style={styles.scoreText}>{item.ecoScore.score}</Text>
+          <Text style={styles.gradeText}>{item.ecoScore.grade}</Text>
         </View>
       </View>
+      {item.scanCount && item.scanCount > 1 && (
+        <Text style={styles.scanCount}>Scanned {item.scanCount} times</Text>
+      )}
     </TouchableOpacity>
   );
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="search" size={80} color="#A1BC98" />
+      <Text style={{ fontSize: 80 }}>🔍</Text>
       <Text style={styles.emptyTitle}>Search for Materials</Text>
       <Text style={styles.emptyText}>
         Find eco-scores for different fabric materials and their environmental impact
@@ -87,7 +99,7 @@ export default function SearchScreen() {
 
   const renderNoResults = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="alert-circle-outline" size={80} color="#A1BC98" />
+      <Text style={{ fontSize: 80 }}>❌</Text>
       <Text style={styles.emptyTitle}>No Results Found</Text>
       <Text style={styles.emptyText}>
         Try searching for a different material like "cotton" or "polyester"
@@ -116,7 +128,7 @@ export default function SearchScreen() {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#778873" style={styles.searchIcon} />
+          <Text style={styles.searchIcon}>🔎</Text>
           <TextInput
             style={styles.searchInput}
             placeholder="Search for materials..."
@@ -126,7 +138,7 @@ export default function SearchScreen() {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => handleSearch('')}>
-              <Ionicons name="close-circle" size={20} color="#778873" />
+              <Text style={{ fontSize: 20 }}>✕</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -157,12 +169,16 @@ export default function SearchScreen() {
             <Text style={styles.sectionTitle}>
               {searchResults.length} {searchResults.length === 1 ? 'Result' : 'Results'}
             </Text>
-            <FlatList
-              data={searchResults}
-              renderItem={renderSearchResult}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-            />
+            {isLoading ? (
+              <ActivityIndicator size="large" color="#778873" style={{ marginTop: 20 }} />
+            ) : (
+              <FlatList
+                data={searchResults}
+                renderItem={renderSearchResult}
+                keyExtractor={(item) => item.id || `${item.materials}-${item.origin}`}
+                scrollEnabled={false}
+              />
+            )}
           </View>
         ) : (
           renderNoResults()
@@ -212,6 +228,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   searchIcon: {
+    fontSize: 20,
     marginRight: 12,
   },
   searchInput: {
@@ -281,9 +298,9 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   scoreBadge: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -291,6 +308,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  gradeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+    marginTop: 2,
+  },
+  resultEmoji: {
+    fontSize: 32,
+  },
+  resultBrand: {
+    fontSize: 12,
+    color: '#778873',
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  scanCount: {
+    fontSize: 12,
+    color: '#778873',
+    opacity: 0.6,
+    marginTop: 8,
   },
   emptyContainer: {
     alignItems: 'center',
