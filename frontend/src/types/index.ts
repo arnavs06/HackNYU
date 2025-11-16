@@ -39,6 +39,7 @@ export interface ScanResult {
   improvementTips?: string[];
   certifications?: string[];
   similarProducts?: SimilarProduct[];
+  userId?: string; // For database storage
 }
 
 export interface SimilarProduct {

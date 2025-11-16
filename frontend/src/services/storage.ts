@@ -1,9 +1,10 @@
 /**
- * Local storage service for managing scan history
- * Uses AsyncStorage to persist data on device
+ * Storage service for managing scan history
+ * Uses AsyncStorage (local) + Supabase (cloud sync)
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScanResult, HistoryStats } from '../types';
+import { supabase } from './supabase';
 
 const SCANS_STORAGE_KEY = '@ecoscan_scans';
 const USER_ID_KEY = '@ecoscan_user_id';
@@ -27,14 +28,39 @@ class StorageService {
   }
 
   /**
-   * Save a scan result to local storage
+   * Save a scan result to both local storage and Supabase
    */
   async saveScan(scan: ScanResult): Promise<void> {
     try {
+      // Save to local storage first (fast, always works)
       const scans = await this.getAllScans();
       scans.unshift(scan); // Add to beginning
       await AsyncStorage.setItem(SCANS_STORAGE_KEY, JSON.stringify(scans));
       console.log('💾 Scan saved to local storage:', scan.id);
+
+      // Sync to Supabase (cloud backup)
+      try {
+        const { error } = await supabase.from('user_scans').insert({
+          user_id: scan.userId || 'anonymous',
+          material: scan.material,
+          country: scan.country,
+          image_uri: scan.imageUri,
+          confidence: scan.confidence,
+          eco_score: scan.ecoScore,
+          explanation: scan.explanation,
+          improvement_tips: scan.improvementTips,
+          timestamp: scan.timestamp,
+        });
+
+        if (error) {
+          console.warn('⚠️ Failed to sync to Supabase:', error.message);
+        } else {
+          console.log('☁️ Scan synced to Supabase:', scan.id);
+        }
+      } catch (supabaseError) {
+        console.warn('⚠️ Supabase sync failed (offline?):', supabaseError);
+        // Don't throw - local save still succeeded
+      }
     } catch (error) {
       console.error('Error saving scan:', error);
       throw new Error('Failed to save scan to storage');
@@ -58,9 +84,40 @@ class StorageService {
   }
 
   /**
-   * Get scan history with limit
+   * Get scan history with limit (tries Supabase first, falls back to local)
    */
   async getScanHistory(limit: number = 20): Promise<ScanResult[]> {
+    try {
+      // Try fetching from Supabase first
+      const userId = await this.getUserId();
+      const { data, error } = await supabase
+        .from('user_scans')
+        .select('*')
+        .eq('user_id', userId)
+        .order('timestamp', { ascending: false })
+        .limit(limit);
+
+      if (!error && data && data.length > 0) {
+        console.log('☁️ Loaded', data.length, 'scans from Supabase');
+        // Transform Supabase format to ScanResult format
+        return data.map((row: any) => ({
+          id: row.id,
+          timestamp: row.timestamp,
+          material: row.material,
+          country: row.country,
+          ecoScore: row.eco_score,
+          explanation: row.explanation || '',
+          confidence: row.confidence,
+          imageUri: row.image_uri,
+          improvementTips: row.improvement_tips,
+          userId: row.user_id,
+        }));
+      }
+    } catch (supabaseError) {
+      console.warn('⚠️ Supabase fetch failed, using local storage:', supabaseError);
+    }
+
+    // Fallback to local storage
     try {
       const scans = await this.getAllScans();
       return scans.slice(0, limit);
