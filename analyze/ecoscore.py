@@ -25,58 +25,403 @@ except ImportError:  # pragma: no cover
 # lower impact; synthetics & leather generally higher; leather/wool have very
 # high methane & land-use footprints). :contentReference[oaicite:1]{index=1}
 MATERIAL_IMPACT = {
-    "hemp": 1.2,
-    "linen": 1.3,          # flax
-    "lyocell": 1.6,        # e.g. TENCEL
-    "bamboo": 2.0,         # heavily process-dependent, but often viscose-like
-    "organic_cotton": 2.0, # less pesticide / water impact than conventional
-    "recycled_cotton": 2.2,
-    "recycled_polyester": 2.5,
-    "wool": 3.5,           # high methane but durable; very rough heuristic
-    "silk": 3.8,
-    "cashmere": 4.2,
+    # --- Very low impact bio-based fibres (best) ---
 
-    "cotton": 3.0,         # conventional cotton: high water & pesticide use :contentReference[oaicite:2]{index=2}
-    "viscose": 3.1,        # generic man-made cellulosics
-    "modal": 3.0,
+    # Hemp generally shows substantially lower GHG and eutrophication than cotton.:contentReference[oaicite:0]{index=0}
+    "hemp": 1.1,
+
+    # Flax/linen scores very well in comparative LCAs vs cotton, especially on water and inputs.:contentReference[oaicite:1]{index=1}
+    "linen": 1.2,
+
+    # Closed-loop lyocell (e.g. TENCEL) usually outperforms both cotton and generic viscose in Higg/TE matrices.:contentReference[oaicite:2]{index=2}
+    "lyocell": 1.3,
+
+    # --- Organic / recycled natural fibres ---
+
+    # Organic cotton has lower GWP and eutrophication than conventional, but still water/land intensive.:contentReference[oaicite:3]{index=3}
+    "organic_cotton": 2.4,
+
+    # Mechanical / chemical recycling of cellulosics tends to reduce impacts vs virgin cotton/viscose.:contentReference[oaicite:4]{index=4}
+    "recycled_cotton": 2.0,
+
+    # Recycled wool shows an order-of-magnitude reduction in CO₂ vs virgin wool in recent LCAs.:contentReference[oaicite:5]{index=5}
+    "recycled_wool": 2.2,
+
+    # --- Down / feather insulation ---
+
+    # Multiple LCAs (commissioned by down industry but ISO-compliant) find ~85–97% lower impact vs polyester fill.:contentReference[oaicite:6]{index=6}
+    "down": 2.8,
+    "feather": 3.0,
+
+    # --- Regenerated cellulosics / bamboo ---
+
+    # Generic viscose / rayon (wood- or bamboo-based) sits between cotton and synthetics: lower GWP than cotton,
+    # but forestry + chemistry issues.:contentReference[oaicite:7]{index=7}
+    "viscose": 3.1,
     "rayon": 3.1,
 
-    "polyester": 4.0,      # fossil-based, microplastics :contentReference[oaicite:3]{index=3}
-    "polyamide": 4.0,      # nylon
-    "acrylic": 4.2,
-    "synthetic_other": 4.0,
-    "elastane": 4.3,       # spandex/lycra
-    "synthetic_leather": 4.3,  # PU, "vegan leather" etc.
-    "pvc": 4.8,
+    # Modal is usually a bit better than generic viscose (often from beech, more controlled processes).:contentReference[oaicite:8]{index=8}
+    "modal": 2.9,
 
-    "leather": 5.0,        # high methane + land use :contentReference[oaicite:4]{index=4}
+    # Cupro is a regenerated cellulose (cotton linter) with impacts typically comparable to better MMCFs.
+    "cupro": 2.8,
+
+    # “Bamboo” on labels is usually bamboo viscose, not closed-loop lyocell, and carries similar chemistry/forestry risk.:contentReference[oaicite:9]{index=9}
+    "bamboo": 2.6,
+
+    # --- Conventional plant / animal fibres ---
+
+    # Conventional cotton repeatedly shows the highest impact among common fibres for GWP, acidification, and water use.:contentReference[oaicite:10]{index=10}
+    "cotton": 3.6,
+
+    # Wool has very high climate impact per kg (methane), even when it’s a small % of the product weight.:contentReference[oaicite:11]{index=11}
+    "wool": 4.2,
+
+    # Silk is one of the highest-impact fibres in Higg-style scoring, mainly due to energy-intensive sericulture.:contentReference[oaicite:12]{index=12}
+    "silk": 4.3,
+
+    # Cashmere has extremely high GHG per kg (hundreds of kg CO₂-eq) due to low yields and grazing impacts.:contentReference[oaicite:13]{index=13}
+    "cashmere": 4.9,
+
+    # --- Synthetics & recycled synthetics ---
+
+    # Fossil-based synthetics dominate fibre volume and emissions; polyester is the biggest single driver today.:contentReference[oaicite:14]{index=14}
+    "polyester": 3.9,
+
+    # Nylon/polyamide is generally more energy-intensive than polyester, with similar microplastic issues.:contentReference[oaicite:15]{index=15}
+    "polyamide": 4.1,
+
+    # Recycled polyester reduces GHG and energy use vs virgin in many LCAs, but still shares microfiber and end-of-life issues.:contentReference[oaicite:16]{index=16}
+    "recycled_polyester": 3.4,
+
+    # Recycled nylon / polyamide shows ~20% CO₂-e reduction per kg vs virgin in brand LCAs, with the usual caveats.:contentReference[oaicite:17]{index=17}
+    "recycled_polyamide": 3.4,
+
+    # Recycled acrylic: some benefit vs virgin but still a niche / high-impact synthetic.
+    "recycled_acrylic": 3.6,
+
+    # Acrylic and elastane are among the higher-impact synthetics per kg in many inventories.
+    "acrylic": 4.3,
+    "elastane": 4.4,  # spandex/lycra
+
+    # Generic bucket for other synthetics when we only know “poly”.
+    "synthetic_other": 4.0,
+
+    # --- Coated synthetics & “vegan” leathers ---
+
+    # PU/PVC “vegan leather” avoids methane, but adds coating chemistry and fossil-based polymers.:contentReference[oaicite:18]{index=18}
+    "synthetic_leather": 4.6,
+
+    # PVC is consistently one of the worst polymers in LCAs because of chlorine chemistry and additives.
+    "pvc": 4.7,
+
+    # --- High-impact animal-based luxury materials ---
+
+    # Leather & fur carry the upstream impacts of cattle/sheep farming (deforestation, methane) plus tanning/processing.:contentReference[oaicite:19]{index=19}
+    "leather": 4.8,
     "fur": 5.0,
 
-    "unknown": 3.5,        # neutral-ish default when we can't tell
+    # Fallback when we truly don't know.
+    "unknown": 3.5,
 }
+
 
 
 # Stronger environmental / social certifications
 STRONG_CERT_KEYWORDS = [
+    # --- Your existing ones ---
     "gots", "global organic textile standard",
     "fairtrade", "fair trade",
     "bluesign",
     "cradle to cradle", "cradle-to-cradle",
     "b corp", "b-corp", "b corporation",
+
+    # --- Strong textile-specific standards / labels ---
+
+    # Global Recycled / Recycled Claim / Organic Content (Textile Exchange)
+    "global recycled standard", "global recycling standard", "grs",
+    "recycled claim standard", "rcs",
+    "organic content standard", "organic cotton standard", "ocs",
+
+    # Holistic textile / fashion standards
+    "global organic textile standard (gots)",  # explicit variant
+    "grs certified", "rcs certified", "ocs certified",
+
+    # Fairtrade variants
+    "fairtrade cotton", "fairtrade textile standard",
+    "fair trade certified",
+
+    # Fair labour / social (high bar)
+    "fair wear foundation", "fair wear", "fairwear",
+    "world fair trade organization", "world fair trade organisation", "wfto",
+    "sa8000",
+
+    # Wool: high welfare / traceability
+    "zq merino", "zqrx", "zq merino wool",
+
+    # Multi-attribute ecolabels used on textiles
+    "eu ecolabel", "european ecolabel",
+    "nordic swan", "nordic swan ecolabel", "svanen",
+
+    # Regenerative / advanced organic farm standards
+    "regenerative organic certified", "roc",
+    "certified regenerative by agw",
+
+    # Vegan / cruelty-free labels explicitly used on fashion
+    "peta-approved vegan", "peta approved vegan",
+    "vegan trademark", "the vegan society", "vegan society trademark",
+    "certified vegan", "vegan action",
 ]
 
-# Moderate certifications / schemes
 MODERATE_CERT_KEYWORDS = [
-    "oeko-tex", "oekotex", "oe ko tex",
-    "better cotton", "bci",
+    # --- Your existing ones + full OEKO-TEX family ---
+
+    # OEKO-TEX umbrella and variants
+    "oeko-tex", "oekotex", "oe ko tex", "oeko tex",
+    "standard 100 by oeko-tex", "oeko-tex standard 100", "standard 100 oeko-tex",
+    "made in green by oeko-tex", "oeko-tex made in green",
+    "leather standard by oeko-tex", "oeko-tex leather standard",
+    "step by oeko-tex", "oeko-tex step",
+    "eco passport by oeko-tex", "oeko-tex eco passport",
+    "oeko-tex organic cotton",
+
+    # Better Cotton
+    "better cotton", "better cotton initiative", "bci",
+    "bci cotton", "better cotton standard",
+
+    # Textile Exchange animal / fibre standards (good but narrower)
     "responsible wool standard", "rws",
+    "responsible down standard", "rds",
+    "responsible alpaca standard", "ras",
+    "responsible mohair standard", "rms",
+
+    # Leather Working Group (environmental, but not full lifecycle)
     "leather working group", "lwg",
+    "lwg-certified", "lwg certified", "lwg gold rated", "lwg silver rated",
+
+    # Organic farm logos applied to fibre (strong upstream, but no textile-process coverage)
+    "usda organic", "usda certified organic",
+    "soil association organic", "soil association certified",
+    "eu organic", "eu organic logo", "european organic logo",
+
+    # Recycling / content labels closely related to GRS/RCS
+    "recycled content certification", "scs recycled content",
+    "recycled content certified",
+
+    # Other animal welfare / vegan cues that may appear on fashion pages
+    "leaping bunny", "cruelty free international",
+    "peta cruelty-free", "peta cruelty free",
 ]
+
 
 
 def _normalize_text(s: Optional[str]) -> str:
     return (s or "").strip().lower()
 
+from typing import Optional, Dict, Any, List
+
+def _infer_material_from_labels(lykdat_raw: Dict[str, Any]) -> Optional[str]:
+    """
+    Heuristic guess of fabric composition from Lykdat-style labels.
+
+    Returns a materials string like:
+        "98% cotton, 2% elastane"
+        "Shell: 100% polyester / Fill: 80% down, 20% feather"
+        "100% recycled_polyester"
+
+    This is *only* a fallback when brand/retailer materials are missing.
+    """
+
+    if not lykdat_raw:
+        return None
+
+    labels = lykdat_raw.get("labels") or []
+    names: List[str] = []
+
+    # gather text fields we’ve seen in Lykdat responses: name/category/type
+    for lab in labels:
+        if not isinstance(lab, dict):
+            continue
+        for key in ("name", "category", "type"):
+            val = lab.get(key)
+            if isinstance(val, str):
+                v = val.strip().lower()
+                if v:
+                    names.append(v)
+
+    if not names:
+        return None
+
+    blob = " ".join(names)
+
+    def has(term: str) -> bool:
+        return term in blob
+
+    def has_any(*terms: str) -> bool:
+        return any(has(t) for t in terms)
+
+    def has_all(*terms: str) -> bool:
+        return all(has(t) for t in terms)
+
+    # --- 1. Very specific / high-signal cases first ---
+
+    # Synthetic leather vs real leather
+    if has_any("faux leather", "fake leather", "vegan leather", "pu leather",
+               "pu-leather", "synthetic leather", "polyurethane leather"):
+        return "100% synthetic_leather"
+
+    if has("leather") and not has_any("faux", "vegan", "pu", "synthetic"):
+        return "100% leather"
+
+    # Faux fur vs real fur
+    if has_any("faux fur", "fake fur"):
+        return "100% synthetic_other"
+    if has("fur"):
+        return "100% fur"
+
+    # Recycled fibres explicitly called out
+    if has_all("recycled", "polyester") or has("recycled polyester") or has("rpet"):
+        return "100% recycled_polyester"
+    if has_all("recycled", "cotton") or has("recycled cotton"):
+        return "100% recycled_cotton"
+    if has_all("recycled", "wool") or has("recycled wool"):
+        return "100% recycled_wool"
+    if has_all("recycled", "nylon") or has_all("recycled", "polyamide"):
+        return "100% recycled_polyamide"
+
+    # Cashmere / wool / knitwear where fibre is explicit
+    if has("cashmere"):
+        return "100% cashmere"
+    if has_any("merino", "wool"):
+        # many mid-range sweaters are blends, so assume wool-rich
+        return "80% wool, 20% polyamide"
+
+    # Explicit bast / cellulose fibres
+    if has("hemp"):
+        return "100% hemp"
+    if has_any("linen", "flax"):
+        return "100% linen"
+    if has_any("tencel", "lyocell"):
+        return "100% lyocell"
+    if has("cupro"):
+        return "100% cupro"
+
+    # Organic cotton explicitly labelled
+    if has("organic cotton"):
+        return "100% organic cotton"
+
+    # --- 2. Category- and use-based heuristics with typical blends ---
+
+    # Denim: typical stretch denim is ~98% cotton / 2% elastane.:contentReference[oaicite:20]{index=20}
+    if has_any("denim", "jeans", "jean"):
+        organic = has("organic")
+        if has_any("stretch", "skinny", "slim", "jegging", "super stretch"):
+            cotton_key = "organic cotton" if organic else "cotton"
+            return f"98% {cotton_key}, 2% elastane"
+        if has_any("rigid", "non-stretch", "non stretch"):
+            cotton_key = "organic cotton" if organic else "cotton"
+            return f"100% {cotton_key}"
+        # default denim
+        cotton_key = "organic cotton" if organic else "cotton"
+        return f"98% {cotton_key}, 2% elastane"
+
+    # Leggings / yoga / gym tights: 80% poly / 20% elastane is a very common spec.:contentReference[oaicite:21]{index=21}
+    if has_any("leggings", "legging", "yoga", "gym", "sports bra", "sport bra",
+               "bike shorts", "biker shorts", "training tights",
+               "running tights", "compression tights"):
+        if has_any("nylon", "polyamide"):
+            return "80% polyamide, 20% elastane"
+        return "80% polyester, 20% elastane"
+
+    # Swimwear: typically ~80% polyamide / 20% elastane.:contentReference[oaicite:22]{index=22}
+    if has_any("swimsuit", "swimwear", "bikini", "swim brief", "one-piece", "one piece"):
+        if has_any("nylon", "polyamide"):
+            return "80% polyamide, 20% elastane"
+        return "82% polyester, 18% elastane"
+
+    # Fleece / sherpa: usually polyester-rich.
+    if has_any("fleece", "sherpa"):
+        return "100% polyester"
+
+    # Hoodies / sweatshirts / joggers: 60/40 cotton-poly is extremely common.:contentReference[oaicite:23]{index=23}
+    if has_any("hoodie", "hooded sweatshirt", "sweatshirt",
+               "sweatpants", "joggers", "jogger", "track pants"):
+        return "60% cotton, 40% polyester"
+
+    # Puffer / quilted / down jackets: assume poly shell + down/feather fill.:contentReference[oaicite:24]{index=24}
+    if has_any("puffer", "down jacket", "quilted jacket", "padded jacket"):
+        return "Shell: 100% polyester / Fill: 80% down, 20% feather"
+
+    # Tailored suiting: blazers, suit trousers, overcoats are often wool-rich blends.
+    if has_any("blazer", "tailored jacket", "suit jacket", "suit trouser",
+               "suit pants", "overcoat", "peacoat", "trench coat"):
+        if has_any("wool", "merino"):
+            return "70% wool, 30% polyester"
+        # fallback synthetic suiting
+        return "70% polyester, 30% viscose"
+
+    # Tees / polos: split between cotton basics and performance polyester.
+    if has_any("t-shirt", "tee", "t shirt", "tank top", "polo"):
+        if has_any("performance", "training", "running", "jersey", "dry fit", "dri-fit", "dri fit"):
+            return "100% polyester"
+        return "100% cotton"
+
+    # Shirts / blouses: if "linen" or "silk" or "satin" appears, we already handled above;
+    # otherwise guess cotton.
+    if has_any("shirt", "button-down", "oxford", "blouse"):
+        return "100% cotton"
+
+    # Dresses / skirts: basic heuristics.
+    if has_any("dress", "skirt"):
+        if has_any("satin", "chiffon", "crepe", "georgette", "organza"):
+            return "100% polyester"
+        if has("linen"):
+            return "100% linen"
+        if has_any("viscose", "rayon", "modal"):
+            return "100% viscose"
+        return "60% cotton, 40% polyester"
+
+    # --- 3. Fallback: pick strongest explicit material if any ---
+
+    # Try to infer a single clear dominant fibre.
+    # Order roughly tracks from lowest to highest impact.
+    if has("hemp"):
+        return "100% hemp"
+    if has_any("linen", "flax"):
+        return "100% linen"
+    if has_any("tencel", "lyocell"):
+        return "100% lyocell"
+    if has("bamboo"):
+        return "100% bamboo"
+    if has("organic cotton"):
+        return "100% organic cotton"
+    if has("cotton"):
+        return "100% cotton"
+    if has_any("viscose", "rayon"):
+        return "100% viscose"
+    if has("modal"):
+        return "100% modal"
+    if has("cupro"):
+        return "100% cupro"
+    if has_any("recycled polyester", "recycled_polyester", "rpet"):
+        return "100% recycled_polyester"
+    if has("polyester"):
+        return "100% polyester"
+    if has_any("recycled nylon", "recycled polyamide"):
+        return "100% recycled_polyamide"
+    if has_any("nylon", "polyamide"):
+        return "100% polyamide"
+    if has("acrylic"):
+        return "100% acrylic"
+    if has_any("elastane", "spandex", "lycra"):
+        return "100% elastane"
+    if has("down"):
+        return "100% down"
+    if has("feather"):
+        return "100% feather"
+
+    # If nothing matched strongly, let caller treat as unknown.
+    return None
 
 def _detect_material_tokens(materials: Optional[str]) -> List[Tuple[str, Optional[float]]]:
     """
@@ -96,11 +441,23 @@ def _detect_material_tokens(materials: Optional[str]) -> List[Tuple[str, Optiona
 
     # Common aliases / pre-normalization
     repl = {
+        # existing entries ...
         "organic cotton": "organic_cotton",
         "bio cotton": "organic_cotton",
         "recycled cotton": "recycled_cotton",
         "recycled polyester": "recycled_polyester",
         "rpet": "recycled_polyester",
+
+        # NEW recycled aliases
+        "recycled wool": "recycled_wool",
+        "recycled nylon": "recycled_polyamide",
+        "recycled polyamide": "recycled_polyamide",
+        "recycled acrylic": "recycled_acrylic",
+
+        # NEW explicit cupro
+        "cupro": "cupro",
+
+        # rest of your existing mappings...
         "polyamide": "polyamide",
         "nylon": "polyamide",
         "flax": "linen",
@@ -130,6 +487,7 @@ def _detect_material_tokens(materials: Optional[str]) -> List[Tuple[str, Optiona
         "lycra": "elastane",
         "acrylic": "acrylic",
     }
+
 
     for k, v in repl.items():
         text = text.replace(k, v)
@@ -204,24 +562,33 @@ def _adjust_for_certifications(
     base_score: float,
     certifications: List[str],
 ) -> float:
-    """
-    Adjust impact score based on presence of trusted fashion certifications.
-
-    Stronger certifications (GOTS, Fairtrade, bluesign, etc.) slightly improve
-    the score; medium certifications (OEKO-TEX, BCI, RWS, LWG, etc.) improve it
-    a bit less. :contentReference[oaicite:5]{index=5}
-    """
     if not certifications:
         return base_score
 
     text = " ".join(certifications).lower()
 
-    strong_hits = sum(1 for kw in STRONG_CERT_KEYWORDS if kw in text)
-    moderate_hits = sum(1 for kw in MODERATE_CERT_KEYWORDS if kw in text)
+    strong_present = any(kw in text for kw in STRONG_CERT_KEYWORDS)
+    moderate_present = any(kw in text for kw in MODERATE_CERT_KEYWORDS)
 
-    # Each strong cert improves by 0.7, each moderate by 0.4, capped
-    adjustment = -0.7 * strong_hits - 0.4 * moderate_hits
-    adjustment = max(adjustment, -1.5)  # don't over-reward
+    # Optional: count unique strong keywords to gently reward stacking
+    strong_count = len({kw for kw in STRONG_CERT_KEYWORDS if kw in text})
+    moderate_count = len({kw for kw in MODERATE_CERT_KEYWORDS if kw in text})
+
+    # Base bonuses
+    adjustment = 0.0
+    if strong_present:
+        adjustment -= 0.7
+    if moderate_present:
+        adjustment -= 0.4
+
+    # Tiny extra bonus per additional distinct cert beyond the first
+    if strong_count > 1:
+        adjustment -= 0.15 * (strong_count - 1)
+    if moderate_count > 1:
+        adjustment -= 0.1 * (moderate_count - 1)
+
+    # Cap total adjustment
+    adjustment = max(adjustment, -1.5)
 
     return base_score + adjustment
 
@@ -407,18 +774,22 @@ def compute_eco_score(
          otherwise fall back to a simple template.
     """
     import sys
-    sys.stderr.write("🟡 compute_eco_score() CALLED\n")
-    sys.stderr.flush()
+    # sys.stderr.write("🟡 compute_eco_score() CALLED\n")
+    # sys.stderr.flush()
     
-    sys.stderr.write(f"   Product: {product.title}\n")
-    sys.stderr.flush()
-    sys.stderr.write(f"   Materials: {product.materials}\n")
-    sys.stderr.flush()
+    # sys.stderr.write(f"   Product: {product.title}\n")
+    # sys.stderr.flush()
+    # sys.stderr.write(f"   Materials: {product.materials}\n")
+    # sys.stderr.flush()
     # --- Step 1: derive materials string & certifications ---
 
     # Prefer structured tag info if present
     materials_str = product.materials
     certs: List[str] = list(product.certifications or [])
+    if not materials_str and lykdat_raw:
+        guessed = _infer_material_from_labels(lykdat_raw)
+        if guessed:
+            materials_str = guessed
 
     if tag_structured:
         # tag_structured["materials"] may be a string
