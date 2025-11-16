@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Linking,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -31,10 +33,34 @@ export default function RecommendationDetailScreen() {
   );
   const fallbackAlternatives = betterAlternatives.length ? betterAlternatives : alternatives;
 
+  const handleOpenUrl = async (url?: string) => {
+    if (!url) {
+      Alert.alert('No Link', 'This item doesn\'t have a product link yet.');
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'Cannot open this URL');
+      }
+    } catch (error) {
+      console.error('Error opening URL:', error);
+      Alert.alert('Error', 'Failed to open the product link');
+    }
+  };
+
   const renderAlternative = (item: Recommendation) => (
-    <View key={item.id} style={styles.altCard}>
+    <TouchableOpacity 
+      key={item.id} 
+      style={styles.altCard}
+      onPress={() => handleOpenUrl(item.url)}
+      activeOpacity={0.7}
+    >
       <View style={styles.altHeader}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.altTitle}>{item.title}</Text>
           <Text style={styles.altBrand}>{item.brand}</Text>
         </View>
@@ -42,16 +68,18 @@ export default function RecommendationDetailScreen() {
           <Text style={styles.scoreText}>{item.ecoScore}</Text>
         </View>
       </View>
-      <Text style={styles.altMaterial}>{item.material}</Text>
+      <Text style={styles.altMaterial}>
+        <Ionicons name="leaf" size={14} color="#778873" /> {item.material}
+      </Text>
       <Text style={styles.altDescription}>{item.description}</Text>
       <View style={styles.altFooter}>
         <Text style={styles.priceText}>{item.price}</Text>
-        <TouchableOpacity style={styles.selectButton}>
-          <Ionicons name="checkmark-circle" size={18} color="#fff" />
-          <Text style={styles.selectButtonText}>Choose This Pick</Text>
-        </TouchableOpacity>
+        <View style={styles.linkIndicator}>
+          <Ionicons name="open-outline" size={16} color="#2b6cb0" />
+          <Text style={styles.linkText}>View Product</Text>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -79,6 +107,16 @@ export default function RecommendationDetailScreen() {
           </Text>
         </View>
         <Text style={styles.description}>{recommendation.description}</Text>
+        
+        {recommendation.url && (
+          <TouchableOpacity 
+            style={styles.viewProductButton}
+            onPress={() => handleOpenUrl(recommendation.url)}
+          >
+            <Ionicons name="open-outline" size={18} color="#fff" />
+            <Text style={styles.viewProductButtonText}>View Product Page</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.altSection}>
@@ -232,19 +270,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2d3748',
   },
-  selectButton: {
+  linkIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#2b6cb0',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
   },
-  selectButtonText: {
-    color: '#fff',
+  linkText: {
+    color: '#2b6cb0',
     fontWeight: '600',
     fontSize: 13,
+  },
+  viewProductButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2b6cb0',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    marginTop: 16,
+    gap: 8,
+  },
+  viewProductButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
   },
   emptyStateText: {
     fontSize: 14,

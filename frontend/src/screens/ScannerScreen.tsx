@@ -104,15 +104,25 @@ export default function ScannerScreen() {
     try {
       console.log('🔍 Starting scan with real backend API...');
       
-      // Send both tag and clothing images to backend
-      const response = await apiService.scanClothingTag(tagImage, clothingImage);
+      // Get user ID for tracking
+      const userId = await storageService.getUserId();
+      console.log('👤 Using user ID:', userId);
+      
+      // Send both tag and clothing images to backend with user ID
+      const response = await apiService.scanClothingTag(tagImage, clothingImage, userId);
 
       if (response.success && response.data) {
         console.log('✅ Scan complete! Score:', response.data.ecoScore.score);
         
+        // Add clothing image URI to scan result for local storage
+        const scanWithImage = {
+          ...response.data,
+          imageUri: clothingImage, // Store clothing image URI
+        };
+        
         // Save scan to local storage for history
         try {
-          await storageService.saveScan(response.data);
+          await storageService.saveScan(scanWithImage);
           console.log('💾 Scan saved to history');
         } catch (storageError) {
           console.warn('Failed to save scan to history:', storageError);
@@ -120,7 +130,7 @@ export default function ScannerScreen() {
         }
         
         // Navigate to results screen
-        navigation.navigate('Results', { scanResult: response.data });
+        navigation.navigate('Results', { scanResult: scanWithImage });
         
         // Reset state for next scan
         setTagImage(null);
@@ -216,17 +226,11 @@ export default function ScannerScreen() {
         >
           <View style={styles.bothImagesContainer}>
             <View style={styles.imagePreviewSmall}>
-              <Image
-                source={tagImage ? { uri: tagImage } : undefined}
-                style={styles.previewImageSmall}
-              />
+              <Image source={{ uri: tagImage }} style={styles.previewImageSmall} />
               <Text style={styles.imageLabel}>Clothing Tag</Text>
             </View>
             <View style={styles.imagePreviewSmall}>
-              <Image
-                source={clothingImage ? { uri: clothingImage } : undefined}
-                style={styles.previewImageSmall}
-              />
+              <Image source={{ uri: clothingImage }} style={styles.previewImageSmall} />
               <Text style={styles.imageLabel}>Clothing Item</Text>
             </View>
           </View>

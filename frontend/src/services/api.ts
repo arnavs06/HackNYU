@@ -159,6 +159,65 @@ class ApiService {
     }
   }
 
+  /**
+   * Get personalized eco-friendly picks based on scan history
+   * @param userId - User ID for tracking
+   * @param scanHistory - User's scan history
+   * @param referenceImageUri - Optional reference image URI (highest-scored scan)
+   */
+  async getPersonalizedPicks(
+    userId: string,
+    scanHistory: ScanResult[],
+    referenceImageUri?: string
+  ): Promise<any> {
+    try {
+      const formData = new FormData();
+
+      // Prepare scan history data (simplified for API)
+      const historyData = scanHistory.slice(0, 20).map(scan => ({
+        id: scan.id,
+        material: scan.material,
+        country: scan.country,
+        ecoScore: scan.ecoScore,
+        brand: scan.brand,
+        timestamp: scan.timestamp,
+      }));
+
+      // Add user_id and scan_history as form fields
+      formData.append('user_id', userId);
+      formData.append('scan_history', JSON.stringify(historyData));
+
+      // Add reference image if provided
+      if (referenceImageUri) {
+        const filename = referenceImageUri.split('/').pop() || 'reference.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+        formData.append('reference_image', {
+          uri: referenceImageUri,
+          name: filename,
+          type: type,
+        } as any);
+      }
+
+      console.log('🎯 Requesting personalized picks...');
+      console.log(`   User: ${userId}, History items: ${historyData.length}`);
+
+      const response = await this.client.post('/picks', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // 60 seconds for picks generation
+      });
+
+      console.log('✅ Picks generated successfully!');
+      return response.data;
+    } catch (error) {
+      console.error('Picks API Error:', error);
+      throw this.handleError(error);
+    }
+  }
+
   private handleError(error: any): Error {
     if (axios.isAxiosError(error)) {
       if (error.response) {

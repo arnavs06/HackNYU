@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 
 const SCANS_STORAGE_KEY = '@ecoscan_scans';
 const USER_ID_KEY = '@ecoscan_user_id';
+const LAST_PICKS_COUNT_KEY = '@ecoscan_last_picks_count';
 
 class StorageService {
   /**
@@ -215,6 +216,30 @@ class StorageService {
         mostCommonMaterial: 'N/A',
         improvementTrend: 0,
       };
+    }
+  }
+
+  /**
+   * Get the last scan count when picks were generated
+   */
+  async getLastPicksCount(): Promise<number> {
+    try {
+      const count = await AsyncStorage.getItem(LAST_PICKS_COUNT_KEY);
+      return count ? parseInt(count, 10) : 0;
+    } catch (error) {
+      console.error('Error getting last picks count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Set the last scan count when picks were generated
+   */
+  async setLastPicksCount(count: number): Promise<void> {
+    try {
+      await AsyncStorage.setItem(LAST_PICKS_COUNT_KEY, count.toString());
+    } catch (error) {
+      console.error('Error setting last picks count:', error);
     }
   }
 
