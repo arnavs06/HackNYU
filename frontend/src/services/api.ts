@@ -7,7 +7,6 @@ import { ApiScanRequest, ApiScanResponse, ScanResult } from '../types';
 const API_BASE_URL = __DEV__ 
   ? 'http://10.253.68.183:8000/api'  // Your computer's local IP address
   : 'https://your-production-backend.com/api';
-
 class ApiService {
   private client: AxiosInstance;
 

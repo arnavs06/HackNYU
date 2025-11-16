@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
+  TextInput,
 } from 'react-native';
 import { useNavigation, CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -24,6 +25,44 @@ type RecommendationsScreenNavigationProp = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
+const FALLBACK_PRICE_TEXT = 'Price varies';
+const formatPriceDisplay = (price: unknown): string => {
+  if (price === null || price === undefined) {
+    return FALLBACK_PRICE_TEXT;
+  }
+
+  if (typeof price === 'number') {
+    if (!Number.isFinite(price) || price <= 0) {
+      return FALLBACK_PRICE_TEXT;
+    }
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: price % 1 === 0 ? 0 : 2,
+    }).format(price);
+  }
+
+  if (typeof price === 'string') {
+    const trimmed = price.trim().toLowerCase();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === 'n/a') {
+      return FALLBACK_PRICE_TEXT;
+    }
+
+    const numericPrice = parseFloat(price.replace(/[^0-9.]/g, ''));
+    if (Number.isNaN(numericPrice) || numericPrice <= 0) {
+      return FALLBACK_PRICE_TEXT;
+    }
+
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: numericPrice % 1 === 0 ? 0 : 2,
+    }).format(numericPrice);
+  }
+
+  return FALLBACK_PRICE_TEXT;
+};
+
 export default function RecommendationsScreen() {
   const navigation = useNavigation<RecommendationsScreenNavigationProp>();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -33,6 +72,8 @@ export default function RecommendationsScreen() {
   const [useDynamicPicks, setUseDynamicPicks] = useState(false);
   const [scanCount, setScanCount] = useState(0);
   const hasLoadedPicksRef = useRef(false); // Track if picks have been loaded this session
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
 
   // Load personalized picks on screen focus only if scan count changed
   useFocusEffect(
@@ -126,7 +167,7 @@ export default function RecommendationsScreen() {
             material: pick.material,
             ecoScore: pick.ecoScore,
             description: pick.description,
-            price: `${pick.price} USD` || 'Price varies',
+            price: formatPriceDisplay(pick.price),
             imageUrl: pick.imageUrl,
             category: 'clothing',
             url: pick.url,
@@ -157,6 +198,49 @@ export default function RecommendationsScreen() {
     setIsRefreshing(true);
     checkAndLoadPicks();
     setIsRefreshing(false);
+  };
+
+  // Filter recommendations by price range
+  const filteredRecommendations = useMemo(() => {
+    const numericMin = minPrice ? parseFloat(minPrice) : null;
+    const numericMax = maxPrice ? parseFloat(maxPrice) : null;
+
+    if (numericMin === null && numericMax === null) {
+      return recommendations;
+    }
+
+    return recommendations.filter((item) => {
+      if (!item.price) {
+        return true;
+      }
+
+      const numericPrice = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+      if (Number.isNaN(numericPrice)) {
+        return true;
+      }
+
+      if (numericMin !== null && numericPrice < numericMin) {
+        return false;
+      }
+
+      if (numericMax !== null && numericPrice > numericMax) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [recommendations, minPrice, maxPrice]);
+
+  const sanitizeCurrencyInput = (value: string) => value.replace(/[^0-9.]/g, '');
+  const handleMinPriceChange = (value: string) => {
+    setMinPrice(sanitizeCurrencyInput(value));
+  };
+  const handleMaxPriceChange = (value: string) => {
+    setMaxPrice(sanitizeCurrencyInput(value));
+  };
+  const handleClearPriceFilter = () => {
+    setMinPrice('');
+    setMaxPrice('');
   };
 
   const handleOpenUrl = async (url: string | undefined) => {
@@ -249,34 +333,50 @@ export default function RecommendationsScreen() {
           )}
         </View>
 
-        {/* Filter Chips */}
-        <View style={styles.filterSection}>
-          <Text style={styles.filterTitle}>Filter by</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            scrollEventThrottle={16}
-          >
-            <View style={styles.filterChips}>
-              <TouchableOpacity style={styles.filterChipActive}>
-                <Text style={styles.filterChipTextActive}>All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterChip}>
-                <Text style={styles.filterChipText}>Tops</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterChip}>
-                <Text style={styles.filterChipText}>Bottoms</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterChip}>
-                <Text style={styles.filterChipText}>Outerwear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.filterChip}>
-                <Text style={styles.filterChipText}>Dresses</Text>
-              </TouchableOpacity>
+        {/* Price Filter */}
+        {recommendations.length > 0 && (
+          <View style={styles.priceFilterContainer}>
+            <View style={styles.priceFilterHeader}>
+              <Text style={styles.priceFilterLabel}>Price range (USD)</Text>
+              {(minPrice.length > 0 || maxPrice.length > 0) && (
+                <TouchableOpacity onPress={handleClearPriceFilter}>
+                  <Text style={styles.priceFilterClear}>Clear</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          </ScrollView>
-        </View>
+            <View style={styles.priceInputsRow}>
+              <View style={[styles.priceInputWrapper, styles.priceInputSpacing]}>
+                <Text style={styles.priceInputLabel}>Min</Text>
+                <TextInput
+                  value={minPrice}
+                  onChangeText={handleMinPriceChange}
+                  keyboardType="numeric"
+                  placeholder="40"
+                  placeholderTextColor="#A1BC98"
+                  style={styles.priceInput}
+                />
+              </View>
+              <View style={styles.priceInputWrapper}>
+                <Text style={styles.priceInputLabel}>Max</Text>
+                <TextInput
+                  value={maxPrice}
+                  onChangeText={handleMaxPriceChange}
+                  keyboardType="numeric"
+                  placeholder="120"
+                  placeholderTextColor="#A1BC98"
+                  style={styles.priceInput}
+                />
+              </View>
+            </View>
+            <Text style={styles.priceFilterHint}>
+              {minPrice || maxPrice
+                ? `Showing items ${minPrice ? `≥ $${minPrice}` : ''}${
+                    minPrice && maxPrice ? ' and ' : ''
+                  }${maxPrice ? `≤ $${maxPrice}` : ''}`
+                : 'Showing all price points'}
+            </Text>
+          </View>
+        )}
 
         {/* Empty State or Recommendations List */}
         {recommendations.length === 0 ? (
@@ -305,9 +405,20 @@ export default function RecommendationsScreen() {
         ) : (
           <View style={styles.recommendationsSection}>
             <Text style={styles.sectionTitle}>
-              {recommendations.length} Recommendations
+              {filteredRecommendations.length} Recommendations
             </Text>
-            {recommendations.map((item) => (
+            {filteredRecommendations.length === 0 && (
+              <View style={styles.noMatchesCard}>
+                <Ionicons name="alert-circle" size={20} color="#778873" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.noMatchesTitle}>No picks in that range</Text>
+                  <Text style={styles.noMatchesText}>
+                    Adjust the min/max values or clear the filter to see more recommendations.
+                  </Text>
+                </View>
+              </View>
+            )}
+            {filteredRecommendations.map((item) => (
             <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.7}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardLeft}>
@@ -444,46 +555,82 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#778873',
   },
-  filterSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  filterTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#778873',
+  priceFilterContainer: {
+    marginHorizontal: 20,
     marginBottom: 12,
-    opacity: 0.7,
-  },
-  filterChips: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  filterChip: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 2,
     borderColor: '#D2DCB6',
   },
-  filterChipActive: {
-    backgroundColor: '#778873',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: '#778873',
+  priceFilterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  filterChipText: {
+  priceFilterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#778873',
-    fontSize: 14,
-    fontWeight: '600',
   },
-  filterChipTextActive: {
-    color: '#F1F3E0',
+  priceFilterClear: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#A1BC98',
+  },
+  priceInputsRow: {
+    flexDirection: 'row',
+  },
+  priceInputWrapper: {
+    flex: 1,
+  },
+  priceInputSpacing: {
+    marginRight: 12,
+  },
+  priceInputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#778873',
+    marginBottom: 6,
+    opacity: 0.8,
+  },
+  priceInput: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D2DCB6',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#778873',
+    backgroundColor: '#F7FAEF',
+  },
+  priceFilterHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#778873',
+    opacity: 0.7,
+  },
+  noMatchesCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D2DCB6',
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: '#FDFEF8',
+  },
+  noMatchesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#778873',
+  },
+  noMatchesText: {
+    fontSize: 13,
+    color: '#778873',
+    opacity: 0.8,
   },
   recommendationsSection: {
     paddingHorizontal: 20,
