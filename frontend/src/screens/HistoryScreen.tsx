@@ -14,7 +14,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList, BottomTabParamList, ScanResult, HistoryStats } from '../types';
-import { mockApiService } from '../services/mockApi';
+import { storageService } from '../services/storage';
 import SwipeableTab from '../components/SwipeableTab';
 
 type HistoryScreenNavigationProp = CompositeNavigationProp<
@@ -33,14 +33,15 @@ export default function HistoryScreen() {
     try {
       if (showLoading) setIsLoading(true);
       
-      // Using mock API - replace with real apiService when backend is ready
+      // Load from local storage
       const [historyData, statsData] = await Promise.all([
-        mockApiService.getScanHistory('user_123', 50),
-        mockApiService.getUserStats('user_123'),
+        storageService.getScanHistory(50),
+        storageService.getUserStats(),
       ]);
 
       setScans(historyData);
       setStats(statsData);
+      console.log('📚 Loaded', historyData.length, 'scans from history');
     } catch (error) {
       console.error('Error loading history:', error);
     } finally {

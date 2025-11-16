@@ -154,6 +154,54 @@ export default function ResultsScreen() {
         </View>
       )}
 
+      {/* Similar Sustainable Alternatives */}
+      {scanResult.similarProducts && scanResult.similarProducts.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionTitleContainer}>
+            <Ionicons name="leaf" size={24} color="#778873" />
+            <Text style={styles.sectionTitle}>Sustainable Alternatives</Text>
+          </View>
+          <Text style={styles.alternativesSubtitle}>
+            Better eco-friendly options similar to this item
+          </Text>
+          {scanResult.similarProducts.map((product, index) => (
+            <View key={product.id} style={styles.alternativeCard}>
+              <View style={styles.alternativeHeader}>
+                <View style={styles.alternativeInfo}>
+                  <Text style={styles.alternativeTitle} numberOfLines={2}>
+                    {product.title}
+                  </Text>
+                  {product.brand && (
+                    <Text style={styles.alternativeBrand}>{product.brand}</Text>
+                  )}
+                  <Text style={styles.alternativeMaterial}>{product.material}</Text>
+                </View>
+                <View style={styles.alternativeScore}>
+                  <Text style={[styles.alternativeScoreText, { color: getScoreColor(product.ecoScore) }]}>
+                    {product.ecoScore}
+                  </Text>
+                  <Text style={styles.alternativeGrade}>{product.grade}</Text>
+                </View>
+              </View>
+              {product.price && (
+                <Text style={styles.alternativePrice}>
+                  {product.currency || '$'}{product.price}
+                </Text>
+              )}
+              {product.url && (
+                <TouchableOpacity 
+                  style={styles.alternativeLink}
+                  onPress={() => {/* Could open URL in browser */}}
+                >
+                  <Text style={styles.alternativeLinkText}>View Product</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#A1BC98" />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Action Buttons */}
       <View style={styles.actionsContainer}>
         <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
@@ -377,5 +425,85 @@ const styles = StyleSheet.create({
     color: '#778873',
     fontStyle: 'italic',
     opacity: 0.7,
+  },
+  alternativesSubtitle: {
+    fontSize: 14,
+    color: '#778873',
+    marginBottom: 12,
+    opacity: 0.8,
+  },
+  alternativeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#D2DCB6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  alternativeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  alternativeInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  alternativeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#778873',
+    marginBottom: 4,
+  },
+  alternativeBrand: {
+    fontSize: 14,
+    color: '#778873',
+    opacity: 0.7,
+    marginBottom: 4,
+  },
+  alternativeMaterial: {
+    fontSize: 13,
+    color: '#A1BC98',
+    fontWeight: '500',
+  },
+  alternativeScore: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  alternativeScoreText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  alternativeGrade: {
+    fontSize: 14,
+    color: '#778873',
+    opacity: 0.7,
+  },
+  alternativePrice: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#778873',
+    marginBottom: 8,
+  },
+  alternativeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F1F3E0',
+    borderRadius: 8,
+    gap: 4,
+  },
+  alternativeLinkText: {
+    fontSize: 14,
+    color: '#A1BC98',
+    fontWeight: '600',
   },
 });

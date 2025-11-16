@@ -19,3 +19,6 @@ frontend/metro-health-check*
 
 # Environment files
 frontend/.env*
+analyze/.env
+!analyze/.env.example
+node_modules/

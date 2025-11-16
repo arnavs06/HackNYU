@@ -4,6 +4,12 @@ import requests
 
 from typing import Optional
 
+# Load environment variables from .env file
+try:
+    from load_env import *  # noqa: F401, F403
+except ImportError:
+    pass  # load_env.py not found, will use system env vars
+
 def get_env(name: str, required: bool = True) -> Optional[str]:
     value = os.getenv(name)
     if required and not value:

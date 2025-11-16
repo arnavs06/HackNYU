@@ -2,8 +2,8 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from analyze.base import ProductMetadata, EcoScore
-from analyze.helper import get_env
+from base import ProductMetadata, EcoScore
+from helper import get_env
 
 # Gemini config
 GEMINI_API_ENV_PRIMARY = "GEMINI_API_KEY"

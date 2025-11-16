@@ -1,9 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 import { ApiScanRequest, ApiScanResponse, ScanResult } from '../types';
 
-// TODO: Replace with your actual backend URL when ready
+// Backend API URL
+// For local development, use your machine's IP address (not localhost)
+// Find IP: Windows: ipconfig | Mac/Linux: ifconfig
 const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:8000/api' 
+  ? 'http://10.253.68.183:8000/api'  // Your computer's local IP address
   : 'https://your-production-backend.com/api';
 
 class ApiService {
@@ -12,7 +14,7 @@ class ApiService {
   constructor() {
     this.client = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 30000, // 30 seconds for image processing
+      timeout: 300000, // 5 minutes - for testing to see full backend processing
       headers: {
         'Content-Type': 'application/json',
       },
@@ -44,28 +46,46 @@ class ApiService {
   }
 
   /**
-   * Step 2 of workflow: Send image to backend for scanning
-   * @param imageUri - Local file URI of the captured image
+   * Main scanning endpoint: Send BOTH tag and clothing images to backend
+   * @param tagImageUri - Local file URI of the tag/label image
+   * @param clothingImageUri - Local file URI of the clothing item image
    * @param userId - Optional user ID for history tracking
    */
-  async scanClothingTag(imageUri: string, userId?: string): Promise<ApiScanResponse> {
+  async scanClothingTag(
+    tagImageUri: string,
+    clothingImageUri: string,
+    userId?: string
+  ): Promise<ApiScanResponse> {
     try {
       const formData = new FormData();
       
-      // Create file object from URI
-      const filename = imageUri.split('/').pop() || 'photo.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      // Create tag image file object
+      const tagFilename = tagImageUri.split('/').pop() || 'tag.jpg';
+      const tagMatch = /\.(\w+)$/.exec(tagFilename);
+      const tagType = tagMatch ? `image/${tagMatch[1]}` : 'image/jpeg';
 
-      formData.append('image', {
-        uri: imageUri,
-        name: filename,
-        type,
+      formData.append('tag_image', {
+        uri: tagImageUri,
+        name: tagFilename,
+        type: tagType,
+      } as any);
+
+      // Create clothing image file object
+      const clothingFilename = clothingImageUri.split('/').pop() || 'clothing.jpg';
+      const clothingMatch = /\.(\w+)$/.exec(clothingFilename);
+      const clothingType = clothingMatch ? `image/${clothingMatch[1]}` : 'image/jpeg';
+
+      formData.append('clothing_image', {
+        uri: clothingImageUri,
+        name: clothingFilename,
+        type: clothingType,
       } as any);
 
       if (userId) {
         formData.append('user_id', userId);
       }
+
+      console.log('📤 Sending scan request with both images...');
 
       const response = await this.client.post<ApiScanResponse>(
         '/scan',
@@ -77,6 +97,7 @@ class ApiService {
         }
       );
 
+      console.log('✅ Scan successful!', response.data.success);
       return response.data;
     } catch (error) {
       console.error('Scan API Error:', error);

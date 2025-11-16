@@ -1,0 +1,13 @@
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables (SENSITIVE - DO NOT COMMIT)
+.env
+
+# Google Cloud credentials (SENSITIVE - DO NOT COMMIT)
+*.json
+!.env.example

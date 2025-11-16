@@ -15,7 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
-import { mockApiService } from '../services/mockApi';
+import { apiService } from '../services/api';
+import { storageService } from '../services/storage';
 
 type ScannerScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Scanner'>;
 
@@ -101,23 +102,39 @@ export default function ScannerScreen() {
     setIsProcessing(true);
 
     try {
-      // Step 2 of workflow: Send to backend with both images
-      // Using mock API for now - switch to real apiService when backend is ready
-      const response = await mockApiService.scanClothingTag(tagImage);
+      console.log('🔍 Starting scan with real backend API...');
+      
+      // Send both tag and clothing images to backend
+      const response = await apiService.scanClothingTag(tagImage, clothingImage);
 
       if (response.success && response.data) {
-        // Step 7: Navigate to results screen
+        console.log('✅ Scan complete! Score:', response.data.ecoScore.score);
+        
+        // Save scan to local storage for history
+        try {
+          await storageService.saveScan(response.data);
+          console.log('💾 Scan saved to history');
+        } catch (storageError) {
+          console.warn('Failed to save scan to history:', storageError);
+          // Don't block user flow if storage fails
+        }
+        
+        // Navigate to results screen
         navigation.navigate('Results', { scanResult: response.data });
-        // Reset state
+        
+        // Reset state for next scan
         setTagImage(null);
         setClothingImage(null);
         setStage(1);
       } else {
-        Alert.alert('Scan Failed', response.error || 'Unable to scan the tag. Please try again.');
+        Alert.alert('Scan Failed', response.error || 'Unable to scan the images. Please try again.');
       }
     } catch (error: any) {
-      console.error('Scan error:', error);
-      Alert.alert('Error', error.message || 'Failed to process images. Please try again.');
+      console.error('❌ Scan error:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to process images. Make sure the backend server is running.'
+      );
     } finally {
       setIsProcessing(false);
     }

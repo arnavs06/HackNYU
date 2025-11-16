@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional
 import mimetypes
 import requests
 
-from analyze.helper import get_env
-from analyze.base import ProductMetadata, EcoScore, ScoredProduct  # noqa: F401
-from analyze.ecoscore import compute_eco_score
+from helper import get_env
+from base import ProductMetadata, EcoScore, ScoredProduct  # noqa: F401
+from ecoscore import compute_eco_score
 
 # --- Lykdat Deep Tagging config ---
 

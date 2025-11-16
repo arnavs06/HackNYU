@@ -6,15 +6,15 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from analyze.helper import get_env, safe_get
-from analyze.base import ProductMetadata
-from analyze.tagging import (
+from helper import get_env, safe_get
+from base import ProductMetadata
+from tagging import (
     DeepTagResult,
     deep_tag_image_url,
     deep_tags_to_product_metadata,
     TagMetadata,
 )
-from analyze.ecoscore import compute_eco_score
+from ecoscore import compute_eco_score
 
 # --- Lykdat Global Search config ---
 

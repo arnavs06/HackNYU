@@ -30,11 +30,28 @@ export interface ScanResult {
   timestamp: string;
   material: string;
   country: string;
+  brand?: string;
+  productName?: string;
   ecoScore: EcoScore;
   explanation: string;
   confidence?: number;
   imageUri?: string;
   improvementTips?: string[];
+  certifications?: string[];
+  similarProducts?: SimilarProduct[];
+}
+
+export interface SimilarProduct {
+  id: string;
+  title: string;
+  brand?: string;
+  material: string;
+  ecoScore: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  url?: string;
+  price?: number;
+  currency?: string;
+  description?: string;
 }
 
 export interface ApiScanRequest {
