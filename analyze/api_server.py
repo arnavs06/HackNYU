@@ -328,7 +328,7 @@ def transform_similar_products(similar_list: List[Dict[str, Any]]) -> List[Dict[
     """
     alternatives = []
     
-    for idx, item in enumerate(similar_list):  # Top 5 alternatives
+    for idx, item in enumerate(similar_list):
         metadata = item.get("combined_product_metadata", {})
         eco = item.get("eco_score", {})
         
