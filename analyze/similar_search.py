@@ -488,6 +488,7 @@ def find_similar_clothing_full_pipeline(
     lykdat_api_key: Optional[str] = None,
     gemini_api_key: Optional[str] = None,
     max_workers: Optional[int] = None,
+    base_grade: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     High-level pipeline:
@@ -502,6 +503,9 @@ def find_similar_clothing_full_pipeline(
          - Compute EcoScore.
          - Wrap everything into an object with the SAME schema as the main one.
     4. Return a list of these objects.
+
+    If base_grade is provided (A–E, where A is best), only include similar
+    results whose grade is strictly better than base_grade.
     """
     # 1) Lykdat global search
     search_data = global_search_image_file(
@@ -556,5 +560,16 @@ def find_similar_clothing_full_pipeline(
 
     # Filter out failures
     out: List[Dict[str, Any]] = [r for r in results if r is not None]
+
+    if base_grade:
+        # Define grade order with A as highest and F as lowest (A > B > C > D > E > F)
+        order = {"A": 6, "B": 5, "C": 4, "D": 3, "E": 2, "F": 1}
+        base_val = order.get(str(base_grade).upper())
+        if base_val is not None:
+            def grade_value(g: Optional[str]) -> int:
+                return order.get((g or "").upper(), -999)
+            # keep only items strictly higher than base (A > B > ...)
+            out = [r for r in out if grade_value((r.get("eco_score") or {}).get("grade")) > base_val]
+
     return out
 

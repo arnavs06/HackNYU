@@ -93,7 +93,7 @@ async def scan_clothing(
         print("🔎 Finding similar sustainable alternatives...")
         similar = find_similar_clothing_full_pipeline(
             clothing_image_path=clothing_path,
-            max_results=5
+            max_results=20
         )
         
         # Transform to frontend format
