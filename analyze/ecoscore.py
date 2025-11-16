@@ -348,7 +348,16 @@ Write a short explanation (2–3 sentences) for a shopper that says WHY this ite
 got this grade, in terms of materials, certifications, and likely environmental impact.
 Do not mention the underlying algorithm or scoring logic.
 """
-
+    print("=== GEMINI ECOSCORE EXPLANATION ===")
+    print("=== Gemini system_prompt ===")
+    print(system_prompt)
+    print("=== Gemini user_prompt ===")
+    print(user_prompt)
+    print("=== Gemini metadata ===")
+    print("model_name:", model_name)
+    print("material_tokens:", material_tokens)
+    print("certifications:", certifications)
+    print("product_title:", product.title, "product_url:", product.url)
     try:
         model = genai.GenerativeModel(
             model_name,
@@ -397,6 +406,14 @@ def compute_eco_score(
       5) Use Gemini to generate a short explanatory summary if available;
          otherwise fall back to a simple template.
     """
+    import sys
+    sys.stderr.write("🟡 compute_eco_score() CALLED\n")
+    sys.stderr.flush()
+    
+    sys.stderr.write(f"   Product: {product.title}\n")
+    sys.stderr.flush()
+    sys.stderr.write(f"   Materials: {product.materials}\n")
+    sys.stderr.flush()
     # --- Step 1: derive materials string & certifications ---
 
     # Prefer structured tag info if present

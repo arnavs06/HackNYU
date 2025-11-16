@@ -3,7 +3,7 @@ import sys
 import mimetypes
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
-import concurrent.futures  # <-- add this
+import concurrent.futures  # <-- parallel similar-product processing
 
 import requests
 
@@ -11,9 +11,9 @@ from helper import get_env, safe_get
 from base import ProductMetadata
 from tagging import (
     DeepTagResult,
-    deep_tag_image_url,
     deep_tags_to_product_metadata,
     TagMetadata,
+    smart_deep_tag_image_url,  # <-- NEW
 )
 from ecoscore import compute_eco_score
 
@@ -81,7 +81,7 @@ def global_search_image_file(
 
         if implicitly_filter_categories:
             payload["implicitly_filter_categories"] = 1
-            
+
         resp = requests.post(
             LYKDAT_GLOBAL_SEARCH_URL,
             data=payload,
@@ -157,9 +157,6 @@ def is_us_like_product(prod: Dict[str, Any]) -> bool:
     Heuristic: consider a product "US-like" if:
       - currency is USD, and
       - (optionally) the retailer domain looks like a US retailer.
-
-    For hackathon/demo purposes this is good enough; it's not a legal definition
-    of "sold in the US".
     """
     currency = (prod.get("currency") or "").upper()
     url = (prod.get("url") or "").lower()
@@ -167,19 +164,14 @@ def is_us_like_product(prod: Dict[str, Any]) -> bool:
     if currency != "USD":
         return False
 
-    # If no URL, but currency is USD, still accept it.
     if not url:
         return True
 
-    # Domain allowlist: prefer known US/on-US retailers
     for dom in US_RETAILER_DOMAINS:
         if dom in url:
             return True
 
-    # If it's USD but not in the allowlist, you can choose:
-    # - return True to keep it, or
-    # - return False to be stricter.
-    # For now, be lenient:
+    # Currency is USD but domain not in allowlist; still accept for now
     return True
 
 
@@ -191,9 +183,6 @@ def select_us_biased_products(
     Take a flat, score-sorted product list and:
       - first keep all products that look "US-like",
       - then top up with non-US products if there are fewer than max_results.
-
-    This way you mostly see US products, but you still get k results even if
-    the global search didn't return enough US ones.
     """
     us_like = [p for p in flat_products if is_us_like_product(p)]
     non_us = [p for p in flat_products if p not in us_like]
@@ -229,14 +218,12 @@ def _configure_gemini(explicit_key: Optional[str] = None) -> str:
 def gemini_parse_product_text_to_tag_structured(
     product_text: str,
     api_key: Optional[str] = None,
-    # model_name: str = "gemini-2.5-flash",
     model_name: str = "gemini-flash-lite-latest",
 ) -> Dict[str, Any]:
     """
     Parse text/HTML scraped from a clothing product page into the same JSON
     schema used for tag_structured (brand, product_name, materials, origin, etc.).
     """
-    # Trim to avoid huge prompts
     text = product_text[:15000]
 
     _configure_gemini(api_key)
@@ -285,35 +272,64 @@ Extract all the metadata you can find and return strictly valid JSON with this s
 Do NOT wrap the JSON in backticks. Do NOT add explanations.
 Only output the JSON object.
 """
-
+    print("\n" + "=" * 80)
+    print("🔵 GEMINI INPUT - Product Text Parsing")
+    print("=" * 80)
+    print(f"Model: {model_name}")
+    print(f"Input text length: {len(text)} characters")
+    print(f"\nSystem Prompt:\n{system_prompt}")
+    print(f"\nUser Prompt (first 1000 chars):\n{user_prompt[:1000]}...")
+    print("=" * 80 + "\n")
     model = genai.GenerativeModel(
         model_name,
         system_instruction=system_prompt,
     )
 
-    response = model.generate_content(
-        [{"role": "user", "parts": [user_prompt]}]
-    )
-
-    raw_text = response.text or ""
-
     import json
 
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError:
-        # Try to salvage a JSON substring
-        start = raw_text.find("{")
-        end = raw_text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            data = json.loads(raw_text[start : end + 1])
-        else:
-            raise RuntimeError(f"Gemini returned non-JSON content: {raw_text}")
+    last_err: Optional[Exception] = None
+    for _ in range(2):
+        try:
+            response = model.generate_content(
+                [{"role": "user", "parts": [user_prompt]}]
+            )
+            raw_text = response.text or ""
 
-    if not isinstance(data, dict):
-        raise RuntimeError(f"Gemini returned non-object JSON: {data!r}")
+            try:
+                data = json.loads(raw_text)
+            except json.JSONDecodeError:
+                start = raw_text.find("{")
+                end = raw_text.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    data = json.loads(raw_text[start : end + 1])
+                else:
+                    raise RuntimeError(f"Gemini returned non-JSON content: {raw_text}")
 
-    return data
+            if not isinstance(data, dict):
+                raise RuntimeError(f"Gemini returned non-object JSON: {data!r}")
+
+            return data
+        except Exception as e:
+            last_err = e
+            continue
+
+    print(f"[warn] gemini_parse_product_text_to_tag_structured failed after retries: {last_err}", file=sys.stderr)
+    return {
+        "brand": None,
+        "product_name": None,
+        "size": None,
+        "material_composition": [],
+        "materials": None,
+        "made_in": None,
+        "country_of_origin": None,
+        "origin": None,
+        "certifications": [],
+        "care_instructions": [],
+        "symbols": [],
+        "other_text": None,
+        "price": None,
+        "currency": None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -329,21 +345,11 @@ def _build_similar_product_object(
     """
     For a single Lykdat similar_products entry, run a full pipeline:
 
-      - Deep Tagging on the product image (Lykdat /detection/tags)
+      - Deep Tagging on the product image (Lykdat or Vision+Gemini)
       - Fetch product page HTML and parse with Gemini into tag_structured
       - Merge into a combined_product_metadata (ProductMetadata)
       - Compute EcoScore
-      - Return an object with the SAME schema as the main combined object:
-        {
-          clothing_image_path,
-          tag_image_path,
-          lykdat_deep_tag_raw,
-          tag_ocr_text,
-          tag_structured,
-          tag_extra_fields,
-          combined_product_metadata,
-          eco_score
-        }
+      - Return an object with the SAME schema as the main combined object.
     """
     product_url = prod.get("url") or ""
 
@@ -358,9 +364,13 @@ def _build_similar_product_object(
     if not image_url:
         raise RuntimeError("No image URL found for similar product")
 
-    # --- Deep Tagging on similar product image ---
-    deep_tags: DeepTagResult = deep_tag_image_url(image_url, api_key=lykdat_api_key)
-    product_from_lykdat: ProductMetadata = deep_tags_to_product_metadata(
+    # --- Deep Tagging on similar product image (with fallback) ---
+    deep_tags: DeepTagResult = smart_deep_tag_image_url(
+        image_url,
+        lykdat_api_key=lykdat_api_key,
+        gemini_api_key=gemini_api_key,
+    )
+    product_from_tags: ProductMetadata = deep_tags_to_product_metadata(
         deep_tags,
         source_url=product_url or image_url,
     )
@@ -421,15 +431,15 @@ def _build_similar_product_object(
         currency = str(tag_structured["currency"])
 
     # Certifications: from deep tags + tag_meta
-    certifications: List[str] = list(product_from_lykdat.certifications)
+    certifications: List[str] = list(product_from_tags.certifications)
     for c in tag_meta.certifications:
         if c and c not in certifications:
             certifications.append(c)
 
     # Eco notes: combine image-based notes + size/care
     notes_parts: List[str] = []
-    if product_from_lykdat.eco_notes:
-        notes_parts.append(product_from_lykdat.eco_notes)
+    if product_from_tags.eco_notes:
+        notes_parts.append(product_from_tags.eco_notes)
     if tag_meta.size:
         notes_parts.append(f"size: {tag_meta.size}")
     if tag_meta.care_instructions:
@@ -439,18 +449,18 @@ def _build_similar_product_object(
 
     # Brand and title / product_name
     brand_from_search = prod.get("brand_name")
-    brand = tag_meta.brand or product_from_lykdat.brand or brand_from_search
+    brand = tag_meta.brand or product_from_tags.brand or brand_from_search
 
-    product_name = tag_meta.product_name or product_from_lykdat.product_name or prod.get("name")
-    title = product_name or product_from_lykdat.title or prod.get("name") or "Clothing item"
+    product_name = tag_meta.product_name or product_from_tags.product_name or prod.get("name")
+    title = product_name or product_from_tags.title or prod.get("name") or "Clothing item"
 
     combined_product = ProductMetadata(
-        url=product_url or product_from_lykdat.url,
+        url=product_url or product_from_tags.url,
         title=title,
         brand=brand,
         product_name=product_name,
-        materials=tag_meta.materials or product_from_lykdat.materials,
-        origin=tag_meta.origin or product_from_lykdat.origin,
+        materials=tag_meta.materials or product_from_tags.materials,
+        origin=tag_meta.origin or product_from_tags.origin,
         certifications=certifications,
         price=price_val,
         currency=currency,
@@ -497,7 +507,7 @@ def find_similar_clothing_full_pipeline(
        similar apparel items from popular online stores.
     2. Bias results toward US-like products (USD + US-ish domains).
     3. For each of the selected results (in parallel when possible):
-         - Run Deep Tagging on the product image.
+         - Run Deep Tagging on the product image (Lykdat or Vision+Gemini).
          - Fetch product page text and parse via Gemini into a tag-like schema.
          - Merge into a combined ProductMetadata.
          - Compute EcoScore.
@@ -507,26 +517,20 @@ def find_similar_clothing_full_pipeline(
     If base_grade is provided (A–E, where A is best), only include similar
     results whose grade is strictly better than base_grade.
     """
-    # 1) Lykdat global search
     search_data = global_search_image_file(
         image_path=clothing_image_path,
         api_key=lykdat_api_key,
     )
 
     flat_products = _flatten_global_results(search_data)
-
-    # 2) Bias toward US-like products
     selected_products = select_us_biased_products(flat_products, max_results)
 
     if not selected_products:
         return []
 
-    # 3) Decide how many threads to use
     if max_workers is None:
-        # sensible default: up to 8 concurrent products, but not more than we have
         max_workers = min(8, len(selected_products))
 
-    # If max_workers == 1, fall back to the old sequential path
     if max_workers <= 1:
         out: List[Dict[str, Any]] = []
         for prod in selected_products:
@@ -542,7 +546,6 @@ def find_similar_clothing_full_pipeline(
                 continue
         return out
 
-    # 4) Parallel worker
     def _worker(prod: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
             return _build_similar_product_object(
@@ -554,22 +557,17 @@ def find_similar_clothing_full_pipeline(
             print(f"[warn] Failed to build similar product object: {e}", file=sys.stderr)
             return None
 
-    # 5) Run the per-product pipeline in parallel, preserving order
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(_worker, selected_products))
 
-    # Filter out failures
     out: List[Dict[str, Any]] = [r for r in results if r is not None]
 
     if base_grade:
-        # Define grade order with A as highest and F as lowest (A > B > C > D > E > F)
         order = {"A": 6, "B": 5, "C": 4, "D": 3, "E": 2, "F": 1}
         base_val = order.get(str(base_grade).upper())
         if base_val is not None:
             def grade_value(g: Optional[str]) -> int:
                 return order.get((g or "").upper(), -999)
-            # keep only items strictly higher than base (A > B > ...)
             out = [r for r in out if grade_value((r.get("eco_score") or {}).get("grade")) > base_val]
 
     return out
-

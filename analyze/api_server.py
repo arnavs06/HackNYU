@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 import traceback
 import json
+import sys
 
 from tagging import combine_lykdat_and_tag_metadata
 from similar_search import find_similar_clothing_full_pipeline
@@ -85,7 +86,8 @@ async def scan_clothing(
     """
     tag_path = None
     clothing_path = None
-    
+    print("🔵 GEMINI INPUT - Scan Start", flush=True)
+    sys.stdout.flush()
     try:
         # Validate file types
         if not tag_image.content_type.startswith('image/'):

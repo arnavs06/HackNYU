@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +15,7 @@ from ecoscore import compute_eco_score
 
 LYKDAT_TAGS_URL = "https://cloudapi.lykdat.com/v1/detection/tags"
 LYKDAT_API_ENV = "LYKDAT_API_KEY"
+USE_LYKDAT_TAGGING_ENV = "USE_LYKDAT_DEEP_TAGGING"  # "1"/"true" to prefer Lykdat, else Vision+Gemini
 
 # --- Gemini / Vision config ---
 
@@ -184,6 +186,422 @@ async def async_deep_tag_image_url(
     )
 
 
+# ---------------------------------------------------------------------------
+# Vision+Gemini alternative deep tagging (same DeepTagResult shape)
+# ---------------------------------------------------------------------------
+
+def _rgb_to_hex_no_hash(color) -> str:
+    """Convert a Vision Color object to a 6-char lowercase hex string, no leading '#'."""
+    r = int(color.red or 0)
+    g = int(color.green or 0)
+    b = int(color.blue or 0)
+    return f"{r:02x}{g:02x}{b:02x}"
+
+
+def _vision_build_base_tags(
+    label_resp,
+    props_resp,
+    max_labels: int = 20,
+    max_colors: int = 5,
+) -> DeepTagResult:
+    """
+    Build a DeepTagResult-like structure purely from Vision outputs:
+      - colors: from image_properties.dominant_colors
+      - items: heuristic clothing items from label_detection
+      - labels: all Vision labels as generic 'vision_label'
+    """
+    colors: List[Dict[str, Any]] = []
+    try:
+        dom = getattr(props_resp, "image_properties_annotation", None)
+        if dom and dom.dominant_colors and dom.dominant_colors.colors:
+            for c in dom.dominant_colors.colors[:max_colors]:
+                hex_code = _rgb_to_hex_no_hash(c.color)
+                confidence = float(c.score or c.pixel_fraction or 0.0)
+                colors.append(
+                    {
+                        "confidence": confidence,
+                        "hex_code": hex_code,
+                        "name": hex_code,  # we don't have a human color name here
+                    }
+                )
+    except Exception as e:
+        print(f"[warn] Vision image_properties parsing failed: {e}", file=sys.stderr)
+
+    labels: List[Dict[str, Any]] = []
+    items: List[Dict[str, Any]] = []
+
+    clothing_keywords = [
+        "shirt", "t-shirt", "tee", "top", "blouse", "dress", "skirt", "trousers",
+        "pants", "jeans", "denim", "shorts", "jacket", "coat", "outerwear",
+        "hoodie", "sweater", "jumper", "cardigan", "suit", "blazer", "overcoat",
+        "pullover", "parka", "puffer", "vest",
+    ]
+
+    try:
+        for lab in (getattr(label_resp, "label_annotations", None) or [])[:max_labels]:
+            desc = lab.description or ""
+            score = float(lab.score or 0.0)
+
+            labels.append(
+                {
+                    "classification": "vision_label",
+                    "confidence": score,
+                    "name": desc,
+                    "secondary_classification": None,
+                }
+            )
+
+            desc_l = desc.lower()
+            if any(kw in desc_l for kw in clothing_keywords):
+                items.append(
+                    {
+                        "category": "clothing",
+                        "confidence": score,
+                        "name": desc_l,
+                    }
+                )
+    except Exception as e:
+        print(f"[warn] Vision label_detection parsing failed: {e}", file=sys.stderr)
+
+    if not items and labels:
+        best_label = max(labels, key=lambda l: float(l.get("confidence") or 0.0))
+        items.append(
+            {
+                "category": "clothing",
+                "confidence": float(best_label.get("confidence") or 0.0),
+                "name": (best_label.get("name") or "clothing").lower(),
+            }
+        )
+
+    raw_payload: Dict[str, Any] = {
+        "colors": colors,
+        "items": items,
+        "labels": labels,
+        "source": {
+            "provider": "vision+gemini",
+            "source_type": "vision_only_base",
+        },
+    }
+
+    return DeepTagResult(
+        colors=colors,
+        items=items,
+        labels=labels,
+        raw=raw_payload,
+    )
+
+
+def _gemini_refine_vision_tags(
+    base: DeepTagResult,
+    api_key: Optional[str] = None,
+    model_name: str = "gemini-flash-lite-latest",
+) -> DeepTagResult:
+    """
+    Optional refinement step:
+      - Send Vision labels + colors to Gemini
+      - Ask it to propose more fashion-oriented items/labels
+      - Merge those into the existing DeepTagResult
+
+    If Gemini is unavailable or fails, returns `base` unchanged.
+    """
+    try:
+        _configure_gemini(api_key)
+    except Exception as e:
+        print(f"[warn] _gemini_refine_vision_tags: Gemini not configured ({e}), using Vision-only tags.", file=sys.stderr)
+        return base
+
+    color_parts = [
+        f"{c.get('name')} (hex {c.get('hex_code')}, conf {float(c.get('confidence') or 0.0):.2f})"
+        for c in base.colors
+    ]
+    label_parts = [
+        f"{l.get('name')} (conf {float(l.get('confidence') or 0.0):.2f})"
+        for l in base.labels[:15]
+    ]
+
+    system_prompt = (
+        "You are an assistant that normalizes clothing attributes.\n"
+        "You receive generic computer-vision labels and simple color information\n"
+        "for a fashion product image. Your job is to:\n"
+        "- identify the most likely garment type (e.g., 'leather jacket', 'jeans'),\n"
+        "- propose 3–10 descriptive labels like silhouette, length, neckline,\n"
+        "  pattern, garment parts, etc.\n"
+        "You MUST return ONLY valid JSON with items[] and labels[] in a specific schema."
+    )
+
+    user_prompt = f"""
+Here are the generic labels from a vision model:
+
+- Labels: {label_parts or ['(none)']}
+- Colors: {color_parts or ['(none)']}
+
+Return strictly valid JSON of the form:
+
+{{
+  "items": [
+    {{
+      "name": string,
+      "category": "clothing",
+      "confidence": number
+    }}
+  ],
+  "labels": [
+    {{
+      "classification": string,              // e.g. "silhouette", "length", "apparel",
+                                             // "garment parts", "pattern", or "other"
+      "name": string,
+      "confidence": number,
+      "secondary_classification": string or null
+    }}
+  ]
+}}
+
+- items[] should list 1–3 likely garment types (e.g. "leather jacket", "denim jeans").
+- labels[] should list 3–10 key attributes you infer from the labels/colors.
+- If unsure, you may leave arrays empty but must still return the JSON shape.
+Do NOT wrap the JSON in backticks. Do NOT add commentary.
+"""
+
+    try:
+        model = genai.GenerativeModel(
+            model_name,
+            system_instruction=system_prompt,
+        )
+        response = model.generate_content(
+            [{"role": "user", "parts": [user_prompt]}]
+        )
+        raw_text = (response.text or "").strip()
+
+        import json
+
+        try:
+            data = json.loads(raw_text)
+        except json.JSONDecodeError:
+            start = raw_text.find("{")
+            end = raw_text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                data = json.loads(raw_text[start : end + 1])
+            else:
+                raise RuntimeError(f"Gemini refine returned non-JSON content: {raw_text}")
+
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Gemini refine returned non-object JSON: {data!r}")
+
+        new_items: List[Dict[str, Any]] = list(base.items)
+        for it in data.get("items") or []:
+            try:
+                name = str(it.get("name") or "").strip()
+                if not name:
+                    continue
+                conf = float(it.get("confidence") or 0.0)
+                new_items.append(
+                    {
+                        "category": "clothing",
+                        "confidence": conf,
+                        "name": name.lower(),
+                    }
+                )
+            except Exception:
+                continue
+
+        new_labels: List[Dict[str, Any]] = list(base.labels)
+        for lbl in data.get("labels") or []:
+            try:
+                name = str(lbl.get("name") or "").strip()
+                if not name:
+                    continue
+                conf = float(lbl.get("confidence") or 0.0)
+                classification = lbl.get("classification") or "other"
+                secondary = lbl.get("secondary_classification")
+                new_labels.append(
+                    {
+                        "classification": classification,
+                        "confidence": conf,
+                        "name": name,
+                        "secondary_classification": secondary,
+                    }
+                )
+            except Exception:
+                continue
+
+        raw_payload = dict(base.raw)
+        src = dict(raw_payload.get("source") or {})
+        src["gemini_used"] = True
+        raw_payload["source"] = src
+
+        return DeepTagResult(
+            colors=base.colors,
+            items=new_items,
+            labels=new_labels,
+            raw=raw_payload,
+        )
+
+    except Exception as e:
+        print(f"[warn] _gemini_refine_vision_tags failed: {e}", file=sys.stderr)
+        return base
+
+
+def vision_gemini_deep_tag_image_file(
+    image_path: str,
+    gemini_api_key: Optional[str] = None,
+    max_labels: int = 20,
+    max_colors: int = 5,
+    timeout: float = 15.0,
+) -> DeepTagResult:
+    """
+    Alternative to Lykdat deep_tag_image_file.
+
+    Uses Google Cloud Vision (label_detection + image_properties) and optionally
+    Gemini refinement, and returns a DeepTagResult with the same structure
+    (colors/items/labels/raw).
+    """
+    if vision is None:
+        raise RuntimeError(
+            "google-cloud-vision is not installed. "
+            "Install via `pip install google-cloud-vision` and configure credentials."
+        )
+
+    client = vision.ImageAnnotatorClient()
+    with open(image_path, "rb") as image_file:
+        content = image_file.read()
+    image = vision.Image(content=content)
+
+    label_resp = client.label_detection(image=image, timeout=timeout)
+    props_resp = client.image_properties(image=image, timeout=timeout)
+
+    base_tags = _vision_build_base_tags(
+        label_resp=label_resp,
+        props_resp=props_resp,
+        max_labels=max_labels,
+        max_colors=max_colors,
+    )
+
+    refined = _gemini_refine_vision_tags(
+        base_tags,
+        api_key=gemini_api_key,
+    )
+
+    raw_payload = dict(refined.raw)
+    src = dict(raw_payload.get("source") or {})
+    src["image_path"] = os.path.abspath(image_path)
+    raw_payload["source"] = src
+
+    return DeepTagResult(
+        colors=refined.colors,
+        items=refined.items,
+        labels=refined.labels,
+        raw=raw_payload,
+    )
+
+
+def vision_gemini_deep_tag_image_url(
+    image_url: str,
+    gemini_api_key: Optional[str] = None,
+    max_labels: int = 20,
+    max_colors: int = 5,
+    timeout: float = 15.0,
+) -> DeepTagResult:
+    """
+    URL variant of the Vision+Gemini deep tagging.
+
+    Matches deep_tag_image_url's return type (DeepTagResult).
+    """
+    if vision is None:
+        raise RuntimeError(
+            "google-cloud-vision is not installed. "
+            "Install via `pip install google-cloud-vision` and configure credentials."
+        )
+
+    client = vision.ImageAnnotatorClient()
+    image = vision.Image()
+    image.source.image_uri = image_url
+
+    label_resp = client.label_detection(image=image, timeout=timeout)
+    props_resp = client.image_properties(image=image, timeout=timeout)
+
+    base_tags = _vision_build_base_tags(
+        label_resp=label_resp,
+        props_resp=props_resp,
+        max_labels=max_labels,
+        max_colors=max_colors,
+    )
+
+    refined = _gemini_refine_vision_tags(
+        base_tags,
+        api_key=gemini_api_key,
+    )
+
+    raw_payload = dict(refined.raw)
+    src = dict(raw_payload.get("source") or {})
+    src["image_url"] = image_url
+    raw_payload["source"] = src
+
+    return DeepTagResult(
+        colors=refined.colors,
+        items=refined.items,
+        labels=refined.labels,
+        raw=raw_payload,
+    )
+
+
+def _should_use_lykdat_tagging() -> bool:
+    """Read USE_LYKDAT_DEEP_TAGGING env to decide whether to prefer Lykdat."""
+    val = os.getenv(USE_LYKDAT_TAGGING_ENV, "1").strip().lower()
+    return val in ("1", "true", "yes", "y")
+
+
+def smart_deep_tag_image_file(
+    image_path: str,
+    lykdat_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    timeout: float = 15.0,
+) -> DeepTagResult:
+    """
+    Wrapper that:
+      - uses Lykdat deep tagging if enabled, and
+      - falls back to Vision+Gemini if Lykdat fails (e.g., quota 403),
+      - or uses Vision+Gemini directly if USE_LYKDAT_DEEP_TAGGING=0.
+    """
+    if _should_use_lykdat_tagging():
+        try:
+            return deep_tag_image_file(image_path, api_key=lykdat_api_key, timeout=timeout)
+        except RuntimeError as e:
+            msg = str(e)
+            if ("image deep tagging limit reached" in msg) or ("status 403" in msg):
+                print(f"[warn] Lykdat deep tagging unavailable, falling back to Vision+Gemini: {e}", file=sys.stderr)
+                return vision_gemini_deep_tag_image_file(image_path, gemini_api_key=gemini_api_key, timeout=timeout)
+            raise
+    else:
+        return vision_gemini_deep_tag_image_file(image_path, gemini_api_key=gemini_api_key, timeout=timeout)
+
+
+def smart_deep_tag_image_url(
+    image_url: str,
+    lykdat_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    timeout: float = 15.0,
+) -> DeepTagResult:
+    """
+    Wrapper for URL-based deep tagging with the same fallback logic as above.
+    """
+    if _should_use_lykdat_tagging():
+        try:
+            return deep_tag_image_url(image_url, api_key=lykdat_api_key, timeout=timeout)
+        except RuntimeError as e:
+            msg = str(e)
+            if ("image deep tagging limit reached" in msg) or ("status 403" in msg):
+                print(f"[warn] Lykdat deep tagging unavailable (URL), falling back to Vision+Gemini: {e}", file=sys.stderr)
+                return vision_gemini_deep_tag_image_url(image_url, gemini_api_key=gemini_api_key, timeout=timeout)
+            raise
+    else:
+        return vision_gemini_deep_tag_image_url(image_url, gemini_api_key=gemini_api_key, timeout=timeout)
+
+
+# ---------------------------------------------------------------------------
+# Convert DeepTagResult → ProductMetadata
+# ---------------------------------------------------------------------------
+
+
 def deep_tags_to_product_metadata(
     tags: DeepTagResult,
     source_url: str,
@@ -233,7 +651,6 @@ def deep_tags_to_product_metadata(
             )
         )
     if label_names:
-        # Keep the top 10 labels for brevity
         notes_parts.append("labels: " + ", ".join(label_names[:10]))
 
     eco_notes = "; ".join(notes_parts) if notes_parts else None
@@ -256,9 +673,15 @@ def deep_tag_file_to_product_metadata(
     image_path: str,
     api_key: Optional[str] = None,
     timeout: float = 15.0,
+    gemini_api_key: Optional[str] = None,
 ) -> ProductMetadata:
-    """Run deep tagging on a local file and map to ProductMetadata."""
-    tags = deep_tag_image_file(image_path, api_key=api_key, timeout=timeout)
+    """Run deep tagging on a local file (Lykdat or Vision+Gemini) and map to ProductMetadata."""
+    tags = smart_deep_tag_image_file(
+        image_path,
+        lykdat_api_key=api_key,
+        gemini_api_key=gemini_api_key,
+        timeout=timeout,
+    )
     source_url = f"file://{os.path.abspath(image_path)}"
     return deep_tags_to_product_metadata(tags, source_url=source_url)
 
@@ -267,9 +690,15 @@ def deep_tag_url_to_product_metadata(
     image_url: str,
     api_key: Optional[str] = None,
     timeout: float = 15.0,
+    gemini_api_key: Optional[str] = None,
 ) -> ProductMetadata:
-    """Run deep tagging on an image URL and map to ProductMetadata."""
-    tags = deep_tag_image_url(image_url, api_key=api_key, timeout=timeout)
+    """Run deep tagging on an image URL (Lykdat or Vision+Gemini) and map to ProductMetadata."""
+    tags = smart_deep_tag_image_url(
+        image_url,
+        lykdat_api_key=api_key,
+        gemini_api_key=gemini_api_key,
+        timeout=timeout,
+    )
     return deep_tags_to_product_metadata(tags, source_url=image_url)
 
 
@@ -391,7 +820,6 @@ def ocr_tag_image_with_vision(
         content = image_file.read()
     image = vision.Image(content=content)
 
-    # document_text_detection handles dense text better than simple text_detection
     response = client.document_text_detection(image=image, timeout=timeout)
     if response.error.message:
         raise RuntimeError(f"Vision API error: {response.error.message}")
@@ -404,7 +832,7 @@ def ocr_tag_image_with_vision(
 def gemini_parse_tag_text(
     tag_text: str,
     api_key: Optional[str] = None,
-    model_name: str = "gemini-2.5-flash",  # or "gemini-2.5-pro"
+    model_name: str = "gemini-flash-lite-latest",  # lightweight model
 ) -> Dict[str, Any]:
     """Feed OCR'd tag text into Gemini and get a structured JSON response."""
     _configure_gemini(api_key)
@@ -446,33 +874,62 @@ with this shape (include fields even if null):
 Do NOT wrap the JSON in backticks. Do NOT add explanations.
 Only output the JSON object.
 """
-
+    print("\n" + "=" * 80)
+    print("🔵 GEMINI INPUT - Tag Text Parsing")
+    print("=" * 80)
+    print(f"Model: {model_name}")
+    print(f"\nSystem Prompt:\n{system_prompt}")
+    print(f"\nUser Prompt:\n{user_prompt}")
+    print("=" * 80 + "\n")
     model = genai.GenerativeModel(
         model_name,
         system_instruction=system_prompt,
     )
 
-    response = model.generate_content(
-        [{"role": "user", "parts": [user_prompt]}]
-    )
-
-    raw_text = response.text or ""
     import json
 
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError:
-        start = raw_text.find("{")
-        end = raw_text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            data = json.loads(raw_text[start : end + 1])
-        else:
-            raise RuntimeError(f"Gemini returned non-JSON content: {raw_text}")
+    # Basic retry wrapper in case Gemini glitches
+    last_err: Optional[Exception] = None
+    for _ in range(2):
+        try:
+            response = model.generate_content(
+                [{"role": "user", "parts": [user_prompt]}]
+            )
+            raw_text = response.text or ""
 
-    if not isinstance(data, dict):
-        raise RuntimeError(f"Gemini returned a non-object JSON: {data!r}")
+            try:
+                data = json.loads(raw_text)
+            except json.JSONDecodeError:
+                start = raw_text.find("{")
+                end = raw_text.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    data = json.loads(raw_text[start : end + 1])
+                else:
+                    raise RuntimeError(f"Gemini returned non-JSON content: {raw_text}")
 
-    return data
+            if not isinstance(data, dict):
+                raise RuntimeError(f"Gemini returned a non-object JSON: {data!r}")
+            return data
+        except Exception as e:
+            last_err = e
+            continue
+
+    print(f"[warn] gemini_parse_tag_text failed after retries: {last_err}", file=sys.stderr)
+    # Return empty-but-valid schema so rest of pipeline continues
+    return {
+        "brand": None,
+        "product_name": None,
+        "size": None,
+        "material_composition": [],
+        "materials": None,
+        "made_in": None,
+        "country_of_origin": None,
+        "origin": None,
+        "certifications": [],
+        "care_instructions": [],
+        "symbols": [],
+        "other_text": tag_text or None,
+    }
 
 
 def tag_image_to_tag_metadata(
@@ -487,7 +944,7 @@ def tag_image_to_tag_metadata(
 
 
 # ---------------------------------------------------------------------------
-# Combine Lykdat deep tags + tag metadata into a single combined object
+# Combine deep tags (Lykdat or Vision+Gemini) + tag metadata into a single object
 # + EcoScore
 # ---------------------------------------------------------------------------
 
@@ -499,19 +956,23 @@ def combine_lykdat_and_tag_metadata(
     gemini_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run both:
-    - Lykdat Deep Tagging on the clothing piece image
+    - Deep Tagging on the clothing piece image (Lykdat or Vision+Gemini)
     - Vision OCR + Gemini parsing on the clothing tag image
 
     Return a single JSON-like dict combining:
-      - raw Lykdat response
+      - raw deep tagging response
       - raw OCR text
       - structured tag JSON
       - a merged ProductMetadata view
       - an EcoScore object (grade + explanation)
     """
-    # 1) Lykdat on main clothing image
-    deep_tags = deep_tag_image_file(clothing_image_path, api_key=lykdat_api_key)
-    product_from_lykdat = deep_tags_to_product_metadata(
+    # 1) Deep tagging on main clothing image (with fallback)
+    deep_tags = smart_deep_tag_image_file(
+        clothing_image_path,
+        lykdat_api_key=lykdat_api_key,
+        gemini_api_key=gemini_api_key,
+    )
+    product_from_tags = deep_tags_to_product_metadata(
         deep_tags,
         source_url=f"file://{os.path.abspath(clothing_image_path)}",
     )
@@ -520,14 +981,14 @@ def combine_lykdat_and_tag_metadata(
     tag_meta = tag_image_to_tag_metadata(tag_image_path, gemini_api_key=gemini_api_key)
 
     # 3) Merge into a single ProductMetadata
-    certifications = list(product_from_lykdat.certifications)
+    certifications = list(product_from_tags.certifications)
     for c in tag_meta.certifications:
         if c and c not in certifications:
             certifications.append(c)
 
     notes_parts: List[str] = []
-    if product_from_lykdat.eco_notes:
-        notes_parts.append(product_from_lykdat.eco_notes)
+    if product_from_tags.eco_notes:
+        notes_parts.append(product_from_tags.eco_notes)
     if tag_meta.size:
         notes_parts.append(f"size: {tag_meta.size}")
     if tag_meta.care_instructions:
@@ -536,15 +997,15 @@ def combine_lykdat_and_tag_metadata(
     eco_notes = "; ".join(notes_parts) if notes_parts else None
 
     combined_product = ProductMetadata(
-        url=product_from_lykdat.url,
-        title=tag_meta.product_name or product_from_lykdat.title,
-        brand=tag_meta.brand or product_from_lykdat.brand,
-        product_name=tag_meta.product_name or product_from_lykdat.product_name,
-        materials=tag_meta.materials or product_from_lykdat.materials,
-        origin=tag_meta.origin or product_from_lykdat.origin,
+        url=product_from_tags.url,
+        title=tag_meta.product_name or product_from_tags.title,
+        brand=tag_meta.brand or product_from_tags.brand,
+        product_name=tag_meta.product_name or product_from_tags.product_name,
+        materials=tag_meta.materials or product_from_tags.materials,
+        origin=tag_meta.origin or product_from_tags.origin,
         certifications=certifications,
-        price=product_from_lykdat.price,
-        currency=product_from_lykdat.currency,
+        price=product_from_tags.price,
+        currency=product_from_tags.currency,
         eco_notes=eco_notes,
     )
 
