@@ -50,7 +50,7 @@ export interface SimilarProduct {
   ecoScore: number;
   grade: 'A' | 'B' | 'C' | 'D' | 'F';
   url?: string;
-  price?: number;
+  price?: number | string;
   currency?: string;
   description?: string;
 }

@@ -1,66 +1,56 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Image,
-  ActivityIndicator,
   RefreshControl,
+  TouchableOpacity,
+  ActivityIndicator,
   Linking,
-  TextInput,
 } from 'react-native';
-import { useNavigation, CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { BottomTabParamList, Recommendation, RootStackParamList } from '../types';
+import { CompositeNavigationProp } from '@react-navigation/native';
 import SwipeableTab from '../components/SwipeableTab';
-import { apiService } from '../services/api';
+import PriceRangeFilter from '../components/PriceRangeFilter';
+import { usePriceFilter } from '../hooks/usePriceFilter';
 import { storageService } from '../services/storage';
+import { apiService } from '../services/api';
+import { BottomTabParamList, Recommendation, RootStackParamList } from '../types';
 
 type RecommendationsScreenNavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<BottomTabParamList, 'Recommendations'>,
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-const FALLBACK_PRICE_TEXT = 'Price varies';
-const formatPriceDisplay = (price: unknown): string => {
-  if (price === null || price === undefined) {
-    return FALLBACK_PRICE_TEXT;
+const formatPriceDisplay = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined) {
+    return 'Price unavailable';
   }
 
-  if (typeof price === 'number') {
-    if (!Number.isFinite(price) || price <= 0) {
-      return FALLBACK_PRICE_TEXT;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return 'Price unavailable';
     }
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: price % 1 === 0 ? 0 : 2,
-    }).format(price);
+    const formatted = value % 1 === 0 ? value.toFixed(0) : value.toFixed(2);
+    return `$${formatted}`;
   }
 
-  if (typeof price === 'string') {
-    const trimmed = price.trim().toLowerCase();
-    if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === 'n/a') {
-      return FALLBACK_PRICE_TEXT;
-    }
-
-    const numericPrice = parseFloat(price.replace(/[^0-9.]/g, ''));
-    if (Number.isNaN(numericPrice) || numericPrice <= 0) {
-      return FALLBACK_PRICE_TEXT;
-    }
-
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: numericPrice % 1 === 0 ? 0 : 2,
-    }).format(numericPrice);
+  const trimmed = value.toString().trim();
+  if (!trimmed) {
+    return 'Price unavailable';
   }
 
-  return FALLBACK_PRICE_TEXT;
+  const numeric = parseFloat(trimmed.replace(/[^0-9.]/g, ''));
+  if (Number.isNaN(numeric)) {
+    return trimmed;
+  }
+
+  const formatted = numeric % 1 === 0 ? numeric.toFixed(0) : numeric.toFixed(2);
+  return `$${formatted}`;
 };
 
 export default function RecommendationsScreen() {
@@ -72,8 +62,28 @@ export default function RecommendationsScreen() {
   const [useDynamicPicks, setUseDynamicPicks] = useState(false);
   const [scanCount, setScanCount] = useState(0);
   const hasLoadedPicksRef = useRef(false); // Track if picks have been loaded this session
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
+  const getRecommendationPrice = useCallback((item: Recommendation) => {
+    if (!item.price) {
+      return null;
+    }
+    const numericPrice = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+    return Number.isNaN(numericPrice) ? null : numericPrice;
+  }, []);
+
+  const {
+    range: priceRange,
+    setMin: setMinPrice,
+    setMax: setMaxPrice,
+    clearRange: clearPriceFilter,
+    filteredItems: filteredRecommendations,
+    hasActiveFilter: hasPriceFilter,
+  } = usePriceFilter(recommendations, getRecommendationPrice);
+
+  const priceFilterSummary = hasPriceFilter
+    ? `Showing items ${priceRange.min ? `≥ $${priceRange.min}` : ''}${
+        priceRange.min && priceRange.max ? ' and ' : ''
+      }${priceRange.max ? `≤ $${priceRange.max}` : ''}`
+    : 'Showing all price points';
 
   // Load personalized picks on screen focus only if scan count changed
   useFocusEffect(
@@ -200,49 +210,6 @@ export default function RecommendationsScreen() {
     setIsRefreshing(false);
   };
 
-  // Filter recommendations by price range
-  const filteredRecommendations = useMemo(() => {
-    const numericMin = minPrice ? parseFloat(minPrice) : null;
-    const numericMax = maxPrice ? parseFloat(maxPrice) : null;
-
-    if (numericMin === null && numericMax === null) {
-      return recommendations;
-    }
-
-    return recommendations.filter((item) => {
-      if (!item.price) {
-        return true;
-      }
-
-      const numericPrice = parseFloat(item.price.replace(/[^0-9.]/g, ''));
-      if (Number.isNaN(numericPrice)) {
-        return true;
-      }
-
-      if (numericMin !== null && numericPrice < numericMin) {
-        return false;
-      }
-
-      if (numericMax !== null && numericPrice > numericMax) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [recommendations, minPrice, maxPrice]);
-
-  const sanitizeCurrencyInput = (value: string) => value.replace(/[^0-9.]/g, '');
-  const handleMinPriceChange = (value: string) => {
-    setMinPrice(sanitizeCurrencyInput(value));
-  };
-  const handleMaxPriceChange = (value: string) => {
-    setMaxPrice(sanitizeCurrencyInput(value));
-  };
-  const handleClearPriceFilter = () => {
-    setMinPrice('');
-    setMaxPrice('');
-  };
-
   const handleOpenUrl = async (url: string | undefined) => {
     if (!url) {
       console.warn('No URL provided');
@@ -265,20 +232,6 @@ export default function RecommendationsScreen() {
     if (score >= 60) return '#D2DCB6';
     if (score >= 40) return '#d4a574';
     return '#c17a6e';
-  };
-
-  const handleViewDetails = (item: Recommendation) => {
-    const alternatives = recommendations
-      .filter((rec) => rec.id !== item.id)
-      .sort((a, b) => b.ecoScore - a.ecoScore);
-
-    const betterMatches = alternatives.filter((rec) => rec.ecoScore >= item.ecoScore);
-    const fallback = betterMatches.length > 0 ? betterMatches : alternatives;
-
-    navigation.navigate('RecommendationDetail', {
-      recommendation: item,
-      alternatives: fallback.slice(0, 5),
-    });
   };
 
   // Render loading state
@@ -335,47 +288,17 @@ export default function RecommendationsScreen() {
 
         {/* Price Filter */}
         {recommendations.length > 0 && (
-          <View style={styles.priceFilterContainer}>
-            <View style={styles.priceFilterHeader}>
-              <Text style={styles.priceFilterLabel}>Price range (USD)</Text>
-              {(minPrice.length > 0 || maxPrice.length > 0) && (
-                <TouchableOpacity onPress={handleClearPriceFilter}>
-                  <Text style={styles.priceFilterClear}>Clear</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View style={styles.priceInputsRow}>
-              <View style={[styles.priceInputWrapper, styles.priceInputSpacing]}>
-                <Text style={styles.priceInputLabel}>Min</Text>
-                <TextInput
-                  value={minPrice}
-                  onChangeText={handleMinPriceChange}
-                  keyboardType="numeric"
-                  placeholder="40"
-                  placeholderTextColor="#A1BC98"
-                  style={styles.priceInput}
-                />
-              </View>
-              <View style={styles.priceInputWrapper}>
-                <Text style={styles.priceInputLabel}>Max</Text>
-                <TextInput
-                  value={maxPrice}
-                  onChangeText={handleMaxPriceChange}
-                  keyboardType="numeric"
-                  placeholder="120"
-                  placeholderTextColor="#A1BC98"
-                  style={styles.priceInput}
-                />
-              </View>
-            </View>
-            <Text style={styles.priceFilterHint}>
-              {minPrice || maxPrice
-                ? `Showing items ${minPrice ? `≥ $${minPrice}` : ''}${
-                    minPrice && maxPrice ? ' and ' : ''
-                  }${maxPrice ? `≤ $${maxPrice}` : ''}`
-                : 'Showing all price points'}
-            </Text>
-          </View>
+          <PriceRangeFilter
+            label="Price range (USD)"
+            currencySymbol="$"
+            minValue={priceRange.min}
+            maxValue={priceRange.max}
+            onMinChange={setMinPrice}
+            onMaxChange={setMaxPrice}
+            onClear={clearPriceFilter}
+            helperText={priceFilterSummary}
+            isClearVisible={hasPriceFilter}
+          />
         )}
 
         {/* Empty State or Recommendations List */}
@@ -554,62 +477,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#778873',
-  },
-  priceFilterContainer: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#D2DCB6',
-  },
-  priceFilterHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  priceFilterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#778873',
-  },
-  priceFilterClear: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#A1BC98',
-  },
-  priceInputsRow: {
-    flexDirection: 'row',
-  },
-  priceInputWrapper: {
-    flex: 1,
-  },
-  priceInputSpacing: {
-    marginRight: 12,
-  },
-  priceInputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#778873',
-    marginBottom: 6,
-    opacity: 0.8,
-  },
-  priceInput: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D2DCB6',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: '#778873',
-    backgroundColor: '#F7FAEF',
-  },
-  priceFilterHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#778873',
-    opacity: 0.7,
   },
   noMatchesCard: {
     flexDirection: 'row',

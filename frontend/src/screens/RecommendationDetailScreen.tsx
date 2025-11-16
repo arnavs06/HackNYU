@@ -11,6 +11,8 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import PriceRangeFilter from '../components/PriceRangeFilter';
+import { usePriceFilter } from '../hooks/usePriceFilter';
 import { RootStackParamList, Recommendation } from '../types';
 
 const useScoreColor = (score: number) => {
@@ -32,6 +34,27 @@ export default function RecommendationDetailScreen() {
     (alt) => alt.ecoScore >= recommendation.ecoScore && alt.id !== recommendation.id,
   );
   const fallbackAlternatives = betterAlternatives.length ? betterAlternatives : alternatives;
+
+  const {
+    range: priceRange,
+    setMin,
+    setMax,
+    clearRange,
+    filteredItems: priceFilteredAlternatives,
+    hasActiveFilter,
+  } = usePriceFilter(fallbackAlternatives, (item) => {
+    if (!item.price) {
+      return null;
+    }
+    const numeric = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+    return Number.isFinite(numeric) ? numeric : null;
+  });
+
+  const priceFilterSummary = hasActiveFilter
+    ? `Showing items ${priceRange.min ? `≥ $${priceRange.min}` : ''}${
+        priceRange.min && priceRange.max ? ' and ' : ''
+      }${priceRange.max ? `≤ $${priceRange.max}` : ''}`
+    : 'Showing all price points';
 
   const handleOpenUrl = async (url?: string) => {
     if (!url) {
@@ -129,7 +152,25 @@ export default function RecommendationDetailScreen() {
             This pick already tops our eco list. Check back later for more sustainable drops!
           </Text>
         ) : (
-          fallbackAlternatives.slice(0, 3).map(renderAlternative)
+          <>
+            <PriceRangeFilter
+              containerStyle={styles.altFilter}
+              minValue={priceRange.min}
+              maxValue={priceRange.max}
+              onMinChange={setMin}
+              onMaxChange={setMax}
+              onClear={clearRange}
+              helperText={priceFilterSummary}
+              isClearVisible={hasActiveFilter}
+            />
+            {priceFilteredAlternatives.length === 0 ? (
+              <Text style={styles.emptyStateText}>
+                No alternatives in that range. Adjust or clear the filter to see more picks.
+              </Text>
+            ) : (
+              priceFilteredAlternatives.slice(0, 3).map(renderAlternative)
+            )}
+          </>
         )}
       </View>
 
@@ -217,6 +258,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderLeftWidth: 4,
     borderLeftColor: '#2b6cb0',
+  },
+  altFilter: {
+    marginHorizontal: 0,
+    marginTop: 0,
   },
   altHeaderRow: {
     flexDirection: 'row',

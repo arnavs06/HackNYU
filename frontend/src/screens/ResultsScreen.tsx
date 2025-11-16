@@ -12,6 +12,8 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import PriceRangeFilter from '../components/PriceRangeFilter';
+import { usePriceFilter } from '../hooks/usePriceFilter';
 import { RootStackParamList, ScanResult } from '../types';
 
 type ResultsScreenRouteProp = RouteProp<RootStackParamList, 'Results'>;
@@ -21,6 +23,28 @@ export default function ResultsScreen() {
   const route = useRoute<ResultsScreenRouteProp>();
   const navigation = useNavigation<ResultsScreenNavigationProp>();
   const { scanResult } = route.params;
+  const {
+    range: priceRange,
+    setMin,
+    setMax,
+    clearRange,
+    filteredItems: filteredAlternatives,
+    hasActiveFilter,
+  } = usePriceFilter(scanResult.similarProducts ?? [], (product) => {
+    if (!product.price) {
+      return null;
+    }
+    const numeric = typeof product.price === 'string'
+      ? parseFloat(product.price.replace(/[^0-9.]/g, ''))
+      : product.price;
+    return Number.isFinite(numeric) ? numeric : null;
+  });
+
+  const priceFilterSummary = hasActiveFilter
+    ? `Showing items ${priceRange.min ? `≥ $${priceRange.min}` : ''}${
+        priceRange.min && priceRange.max ? ' and ' : ''
+      }${priceRange.max ? `≤ $${priceRange.max}` : ''}`
+    : 'Showing all price points';
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return '#A1BC98';
@@ -171,7 +195,7 @@ export default function ResultsScreen() {
       )}
 
       {/* Similar Sustainable Alternatives */}
-      {scanResult.similarProducts && scanResult.similarProducts.length > 0 && (
+      {filteredAlternatives.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionTitleContainer}>
             <Ionicons name="leaf" size={24} color="#778873" />
@@ -180,7 +204,7 @@ export default function ResultsScreen() {
           <Text style={styles.alternativesSubtitle}>
             Better eco-friendly options similar to this item
           </Text>
-          {scanResult.similarProducts.map((product, index) => (
+          {filteredAlternatives.map((product) => (
             <View key={product.id} style={styles.alternativeCard}>
               <View style={styles.alternativeHeader}>
                 <View style={styles.alternativeInfo}>
@@ -441,6 +465,10 @@ const styles = StyleSheet.create({
     color: '#778873',
     fontStyle: 'italic',
     opacity: 0.7,
+  },
+  alternativeFilter: {
+    marginHorizontal: 0,
+    marginTop: 0,
   },
   alternativesSubtitle: {
     fontSize: 14,
