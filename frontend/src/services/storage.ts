@@ -161,7 +161,8 @@ class StorageService {
    */
   async getUserStats(): Promise<HistoryStats> {
     try {
-      const scans = await this.getAllScans();
+      // Use getScanHistory with large limit to get all scans (same source as history display)
+      const scans = await this.getScanHistory(1000);
       
       if (scans.length === 0) {
         return {
