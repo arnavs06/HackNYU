@@ -32,8 +32,12 @@ HackNYU/
 │   │   ├── navigation/    # React Navigation
 │   │   └── types/         # TypeScript definitions
 │   └── README.md
-└── backend/               # ⏳ API server (TODO)
-    └── (to be created)
+└── backend/               # ✅ FastAPI mock backend
+    ├── app/
+    │   ├── main.py        # Endpoints matching src/services/api.ts
+    │   ├── schemas.py     # Pydantic response models
+    │   └── mock_data.py   # Realistic scan generator
+    └── README.md
 ```
 
 ## 🚀 Quick Start
@@ -49,6 +53,18 @@ npm start
 Then scan QR code with **Expo Go** app on your phone!
 
 📱 See `QUICK_START.md` for detailed instructions.
+
+### Start the FastAPI Backend
+
+```bash
+cd backend
+python -m venv .venv
+.venv\\Scripts\\activate  # PowerShell
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+The Expo app already targets `http://localhost:8000/api` while in development (`__DEV__`), so once the server is running you can scan from the device/emulator and hit the FastAPI service instead of the in-app mock.
 
 ## ✅ What's Built
 
