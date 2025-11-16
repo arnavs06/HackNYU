@@ -93,7 +93,7 @@ async def scan_clothing(
         print("🔎 Finding similar sustainable alternatives...")
         similar = find_similar_clothing_full_pipeline(
             clothing_image_path=clothing_path,
-            max_results=5
+            max_results=20
         )
         
         # Transform to frontend format
@@ -328,7 +328,7 @@ def transform_similar_products(similar_list: List[Dict[str, Any]]) -> List[Dict[
     """
     alternatives = []
     
-    for idx, item in enumerate(similar_list):  # Top 5 alternatives
+    for idx, item in enumerate(similar_list):  
         metadata = item.get("combined_product_metadata", {})
         eco = item.get("eco_score", {})
         
