@@ -1,6 +1,6 @@
 # 🌿 EcoScan - Sustainable Fashion Scanner
 
-> HackNYU Fall 2025 Project - Sustainability Track
+> HackNYU Fall 2025 Project - Sustainability Track (1st Place)
 
 A mobile app that scans clothing tags and provides instant eco-impact scores using AI, helping consumers make sustainable fashion choices.
 
